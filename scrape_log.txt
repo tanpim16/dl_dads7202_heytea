@@ -1,0 +1,85 @@
+เริ่มดึงรูป: 35 งาน (3 พร้อมกัน)
+
+  [cha_thai] kw00/bing: 68 รูป — ชาไทยเย็น แก้ว
+  [cha_thai] kw01/bing: 100 รูป — ชาเย็น ร้านชา
+  [cha_thai] kw02/bing: 100 รูป — ชานมไทย แก้วพลาสติก
+  [cha_thai] kw03/bing: 100 รูป — thai milk tea iced glass
+  ข้าม [cha_thai] kw03/baidu (มี 52 รูป)
+  [cha_thai] kw04/bing: 100 รูป — thai tea orange drink cup
+  ข้าม [cha_thai] kw04/baidu (มี 56 รูป)
+  [cha_dam_yen] kw00/bing: 87 รูป — ชาดำเย็น แก้ว
+  [cha_dam_yen] kw01/bing: 100 รูป — ชาดำเย็น ร้านกาแฟ
+  [cha_dam_yen] kw02/bing: 87 รูป — ชาดำเย็นไม่ใส่นม
+  [cha_dam_yen] kw03/bing: 100 รูป — thai iced black tea glass
+  ข้าม [cha_dam_yen] kw03/baidu (มี 56 รูป)
+  [cha_dam_yen] kw04/bing: 100 รูป — iced black tea no milk cup
+  ข้าม [cha_dam_yen] kw04/baidu (มี 57 รูป)
+  [cha_khiao_nom] kw00/bing: 34 รูป — ชาเขียวนมเย็น แก้ว
+  [cha_khiao_nom] kw01/bing: 100 รูป — ชาเขียวนม ร้านชา
+  [cha_khiao_nom] kw02/bing: 94 รูป — ชาเขียวมัทฉะลาเต้เย็น
+  [cha_khiao_nom] kw03/bing: 100 รูป — green milk tea iced cup
+  ข้าม [cha_khiao_nom] kw03/baidu (มี 54 รูป)
+  [cha_khiao_nom] kw04/bing: 84 รูป — matcha latte iced plastic cup
+  ข้าม [cha_khiao_nom] kw04/baidu (มี 54 รูป)
+  [cha_nom_khai_muk] kw00/bing: 96 รูป — ชานมไข่มุก แก้ว
+  [cha_nom_khai_muk] kw01/bing: 96 รูป — ชาไข่มุก บราวน์ชูการ์
+  [cha_nom_khai_muk] kw02/bing: 100 รูป — ชานมไข่มุกร้านดัง
+  [cha_nom_khai_muk] kw03/bing: 100 รูป — bubble milk tea boba cup
+  ข้าม [cha_nom_khai_muk] kw03/baidu (มี 53 รูป)
+  [cha_nom_khai_muk] kw04/bing: 100 รูป — brown sugar boba milk tea
+  ข้าม [cha_nom_khai_muk] kw04/baidu (มี 50 รูป)
+  [cha_phonlamai] kw00/bing: 100 รูป — ชาผลไม้ แก้ว
+  [cha_phonlamai] kw01/bing: 100 รูป — ชาพีชเย็น แก้ว
+  [cha_phonlamai] kw02/bing: 95 รูป — ชาลิ้นจี่ ชาเสาวรส เย็น
+  [cha_phonlamai] kw03/bing: 100 รูป — fruit tea iced cup slices
+  ข้าม [cha_phonlamai] kw03/baidu (มี 56 รูป)
+  [cha_phonlamai] kw04/bing: 100 รูป — peach iced tea with fruit pieces
+  ข้าม [cha_phonlamai] kw04/baidu (มี 49 รูป)
+
+ดาวน์โหลดเสร็จ
+
+รวมไฟล์...
+  cha_thai: 576 รูป
+  cha_dam_yen: 587 รูป
+  cha_khiao_nom: 520 รูป
+  cha_nom_khai_muk: 595 รูป
+  cha_phonlamai: 600 รูป
+
+ตัดรูปซ้ำ...
+
+  ตัดซ้ำ: 415 รูป (ข้ามคลาส 174), อ่านไม่ได้: 0 รูป
+
+============================================================
+จำนวนรูปต่อคลาส (ก่อนคัดมือ)
+============================================================
+class
+cha_dam_yen         457
+cha_khiao_nom       438
+cha_nom_khai_muk    506
+cha_phonlamai       532
+cha_thai            530
+
+สัดส่วน keyword ไทย vs อังกฤษ (ต้องใกล้เคียงกันทุกคลาส)
+lang               en   th  th_pct
+class                             
+cha_dam_yen       254  203    44.4
+cha_khiao_nom     239  199    45.4
+cha_nom_khai_muk  271  235    46.4
+cha_phonlamai     277  255    47.9
+cha_thai          282  248    46.8
+
+แยกตาม engine
+engine            baidu  bing
+class                        
+cha_dam_yen          96   361
+cha_khiao_nom        81   357
+cha_nom_khai_muk     99   407
+cha_phonlamai        97   435
+cha_thai            104   426
+
+Imbalance ratio: 1.21
+รวม: 2463 รูป  | grayscale: 5  | ซ้ำข้ามคลาส (ต้องดูมือ): 135
+
+ถัดไป: คัดมือครั้งเดียว — เป้าหมายใช้ได้จริงคลาสละ 120-200 รูป
+
+เซฟ metadata -> tea_dataset/metadata.csv

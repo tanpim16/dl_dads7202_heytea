@@ -1,0 +1,16 @@
+# env
+.venv/
+__pycache__/
+.DS_Store
+
+# รูป (1.3 GB + รูปจากเว็บมีลิขสิทธิ์) -> แชร์ผ่าน Drive แทน; เก็บเฉพาะ metadata
+tea_dataset/**
+!tea_dataset/
+!tea_dataset/metadata.csv
+!tea_dataset/metadata_clean.csv
+
+# contact sheet สร้างใหม่ได้ด้วย `chanet_curate.py sheets`
+curation/sheets*/*.jpg
+
+# backup
+chanet_scraper.orig.py

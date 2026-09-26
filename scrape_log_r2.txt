@@ -1,0 +1,100 @@
+เริ่มดึงรูป: 50 งาน (3 พร้อมกัน)
+
+  ข้าม [cha_thai] kw00/bing (มี 68 รูป)
+  ข้าม [cha_thai] kw01/bing (มี 100 รูป)
+  ข้าม [cha_thai] kw02/bing (มี 100 รูป)
+  ข้าม [cha_thai] kw03/bing (มี 100 รูป)
+  ข้าม [cha_thai] kw03/baidu (มี 52 รูป)
+  ข้าม [cha_thai] kw04/bing (มี 100 รูป)
+  ข้าม [cha_thai] kw04/baidu (มี 56 รูป)
+  [cha_thai] kw05/bing: 98 รูป — ชาเย็น แก้วพลาสติก ใส่น้ำแข็ง
+  [cha_thai] kw06/bing: 100 รูป — ชาไทยเย็น ร้านชาริมทาง
+  [cha_thai] kw07/bing: 100 รูป — ชานมเย็น สีส้ม แก้ว
+  ข้าม [cha_dam_yen] kw00/bing (มี 87 รูป)
+  ข้าม [cha_dam_yen] kw01/bing (มี 100 รูป)
+  ข้าม [cha_dam_yen] kw02/bing (มี 87 รูป)
+  ข้าม [cha_dam_yen] kw03/bing (มี 100 รูป)
+  ข้าม [cha_dam_yen] kw03/baidu (มี 56 รูป)
+  ข้าม [cha_dam_yen] kw04/bing (มี 100 รูป)
+  ข้าม [cha_dam_yen] kw04/baidu (มี 57 รูป)
+  [cha_dam_yen] kw05/bing: 97 รูป — ชาดำเย็น ใส่น้ำแข็ง แก้วพลาสติก
+  [cha_dam_yen] kw06/bing: 99 รูป — ชาดำเย็น ร้านชาริมทาง
+  [cha_dam_yen] kw07/bing: 86 รูป — ชาดำใส่น้ำแข็ง ชาดำหวาน
+  [cha_khiao_nom] kw00/bing: 100 รูป — ชาเขียวนมเย็น แก้ว
+  ข้าม [cha_khiao_nom] kw01/bing (มี 100 รูป)
+  ข้าม [cha_khiao_nom] kw02/bing (มี 94 รูป)
+  ข้าม [cha_khiao_nom] kw03/bing (มี 100 รูป)
+  ข้าม [cha_khiao_nom] kw03/baidu (มี 54 รูป)
+  ข้าม [cha_khiao_nom] kw04/bing (มี 84 รูป)
+  ข้าม [cha_khiao_nom] kw04/baidu (มี 54 รูป)
+  [cha_khiao_nom] kw05/bing: 96 รูป — ชาเขียวนม แก้วพลาสติก ใส่น้ำแข็ง
+  [cha_khiao_nom] kw06/bing: 100 รูป — ชาเขียวนมเย็น ร้านชาริมทาง
+  [cha_khiao_nom] kw07/bing: 84 รูป — ชาเขียวนมสด เย็น
+  ข้าม [cha_nom_khai_muk] kw00/bing (มี 96 รูป)
+  ข้าม [cha_nom_khai_muk] kw01/bing (มี 96 รูป)
+  ข้าม [cha_nom_khai_muk] kw02/bing (มี 100 รูป)
+  ข้าม [cha_nom_khai_muk] kw03/bing (มี 100 รูป)
+  ข้าม [cha_nom_khai_muk] kw03/baidu (มี 53 รูป)
+  ข้าม [cha_nom_khai_muk] kw04/bing (มี 100 รูป)
+  ข้าม [cha_nom_khai_muk] kw04/baidu (มี 50 รูป)
+  [cha_nom_khai_muk] kw05/bing: 94 รูป — ชานมไข่มุก แก้วพลาสติก ใส่น้ำแข็ง
+  [cha_nom_khai_muk] kw06/bing: 100 รูป — ชานมไข่มุก ร้านชาริมทาง
+  [cha_nom_khai_muk] kw07/bing: 84 รูป — ชานมไต้หวัน ไข่มุก เย็น
+  ข้าม [cha_phonlamai] kw00/bing (มี 100 รูป)
+  ข้าม [cha_phonlamai] kw01/bing (มี 100 รูป)
+  ข้าม [cha_phonlamai] kw02/bing (มี 95 รูป)
+  ข้าม [cha_phonlamai] kw03/bing (มี 100 รูป)
+  ข้าม [cha_phonlamai] kw03/baidu (มี 56 รูป)
+  ข้าม [cha_phonlamai] kw04/bing (มี 100 รูป)
+  ข้าม [cha_phonlamai] kw04/baidu (มี 49 รูป)
+  [cha_phonlamai] kw05/bing: 98 รูป — ชาผลไม้ แก้วพลาสติก ใส่น้ำแข็ง
+  [cha_phonlamai] kw06/bing: 100 รูป — ชาผลไม้ ร้านชาริมทาง
+  [cha_phonlamai] kw07/bing: 93 รูป — ชาผลไม้รวม ชาสตรอว์เบอร์รี่ ชาส้ม เย็น
+
+ดาวน์โหลดเสร็จ
+
+รวมไฟล์...
+  cha_thai: 874 รูป
+  cha_dam_yen: 869 รูป
+  cha_khiao_nom: 866 รูป
+  cha_nom_khai_muk: 873 รูป
+  cha_phonlamai: 891 รูป
+
+ตัดรูปซ้ำ...
+
+  ตัดซ้ำ: 1192 รูป (ข้ามคลาส 685), อ่านไม่ได้: 0 รูป
+
+============================================================
+จำนวนรูปต่อคลาส (ก่อนคัดมือ)
+============================================================
+class
+cha_dam_yen         572
+cha_khiao_nom       531
+cha_nom_khai_muk    623
+cha_phonlamai       685
+cha_thai            770
+
+สัดส่วน keyword ไทย vs อังกฤษ (ต้องใกล้เคียงกันทุกคลาส)
+lang               en   th  th_pct
+class                             
+cha_dam_yen       254  318    55.6
+cha_khiao_nom     239  292    55.0
+cha_nom_khai_muk  271  352    56.5
+cha_phonlamai     277  408    59.6
+cha_thai          282  488    63.4
+
+แยกตาม engine
+engine            baidu  bing
+class                        
+cha_dam_yen          96   476
+cha_khiao_nom        81   450
+cha_nom_khai_muk     99   524
+cha_phonlamai        97   588
+cha_thai            104   666
+
+Imbalance ratio: 1.45
+รวม: 3181 รูป  | grayscale: 7  | ซ้ำข้ามคลาส (ต้องดูมือ): 378
+
+ถัดไป: คัดมือครั้งเดียว — เป้าหมายใช้ได้จริงคลาสละ 120-200 รูป
+
+เซฟ metadata -> tea_dataset/metadata.csv
