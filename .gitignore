@@ -14,3 +14,6 @@ curation/sheets*/*.jpg
 
 # backup
 chanet_scraper.orig.py
+
+# รูปที่หามาเอง (Grab/LINE MAN/FB) — ลิขสิทธิ์ร้าน, แชร์ผ่าน Drive
+manual_add/

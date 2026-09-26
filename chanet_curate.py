@@ -8,6 +8,12 @@ ChaNet — คัดรูป (Hey Tea group)
                    ย้ายรูปผิดคลาสไปคลาสที่ถูก (relabel) และเขียน tea_dataset/metadata_clean.csv
 ขั้นที่ 5  sync  : หลังคนเปิดโฟลเดอร์คลาสแล้ว "ลบ" หรือ "ลากย้ายคลาส" เอง -> บันทึกลง curation/user_review.csv
                    (ไฟล์แยกจาก manual.csv เพราะ decide เขียน manual.csv ทับทุกครั้ง) แล้ว apply ให้อัตโนมัติ
+ขั้นที่ 6  ingest: รับรูปที่หามาเอง (Grab / LINE MAN / Facebook ฯลฯ) จาก manual_add/
+                   โครงสร้าง: manual_add/<class>/<source>__<ร้าน_สาขา>/*.jpg
+                   เช่น     manual_add/cha_dam_yen/grab__ชาตรามือ_สยาม/01.jpg
+                   -> ตัดรูปซ้ำ (pHash เทียบกับทุกรูปที่มีอยู่), ตั้ง shop_id = ชื่อโฟลเดอร์ร้าน,
+                      hardlink เข้า tea_dataset/<class>/ แล้ว apply
+                   ไฟล์ใน manual_add/ คือต้นฉบับ ห้ามลบ (เหมือน _raw ของรูปที่ scrape)
 
 รัน:
     python chanet_curate.py score
@@ -15,6 +21,7 @@ ChaNet — คัดรูป (Hey Tea group)
     python chanet_curate.py decide
     python chanet_curate.py apply
     python chanet_curate.py sync     # หลังลบ/ย้ายรูปใน tea_dataset/<class>/ ด้วยมือ
+    python chanet_curate.py ingest   # หลังเอารูปใหม่ใส่ manual_add/
 
 รูปแบบ sheet_decisions.txt (1 บรรทัด / 1 sheet / 1 การกระทำ):
     <sheet>|keep_only|<idx,...>|<reason>          # นอกจาก idx ที่ระบุ = reject
@@ -234,7 +241,7 @@ def apply():
         ur = pd.read_csv(USER_REVIEW).drop_duplicates("filename", keep="last").set_index("filename")
         dec.update(ur["decision"])
         reason.update(ur["reason"].fillna(""))
-    df["decision"] = df["filename"].map(dec)
+    df["decision"] = df["filename"].map(dec).fillna("keep")   # รูป ingest ไม่มีคะแนน CLIP = คนเลือกมาเอง
     df["reject_reason"] = df["filename"].map(reason).fillna("")
 
     relab = df["decision"].str.startswith("relabel:")
@@ -269,6 +276,11 @@ def apply():
     print(ct.assign(baidu_pct=(ct["baidu"] / ct.sum(axis=1) * 100).round(1)).to_string())
     print("\nจำนวนรูปต่อ group (search_class, keyword_id) แยกตามคลาสจริง — ใช้ทำ group split")
     print(clean.groupby(["class", "search_class", "keyword_id"]).size().unstack(fill_value=0).to_string())
+    man = clean[clean["source"] == "manual"]
+    if len(man):
+        print("\nรูปที่หามาเอง: จำนวนร้าน (shop_id) / จำนวนรูป ต่อคลาส — ร้านเยอะดีกว่ารูปเยอะจากร้านเดียว")
+        print(man.groupby("class").agg(shops=("shop_id", "nunique"), images=("filename", "size"),
+                                       max_per_shop=("shop_id", lambda x: x.value_counts().max())).to_string())
     n = clean["class"].value_counts()
     print(f"\nImbalance ratio: {n.max() / n.min():.2f}  | รวม {len(clean)} รูป")
 
@@ -294,5 +306,98 @@ def sync():
     apply()
 
 
+MANUAL_ADD = Path("manual_add")
+IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+MIN_SIZE = 350          # เท่ากับรูป scrape — ความละเอียดต่างกันตามแหล่ง อาจกลายเป็น shortcut
+PHASH_THRESHOLD = 6
+
+
+def ingest():
+    import hashlib
+    import os
+    import imagehash
+    from chanet_scraper import looks_grayscale
+
+    meta = pd.read_csv(META)
+    known = set(meta["filename"])
+    # hash ของรูปที่มีอยู่แล้วทั้งหมด (รวมที่ reject) — รูปซ้ำไม่ควรเข้ามาใหม่ไม่ว่าเดิมจะถูกเก็บหรือทิ้ง
+    where = {p.name: p for d in [*[BASE / c for c in CLASS_PROMPTS], BASE / "_rejected"] if d.exists()
+             for p in d.iterdir()}
+    H, Hname = [], []
+    for fn in meta["filename"]:
+        if fn in where:
+            try:
+                with Image.open(where[fn]) as im:
+                    H.append(imagehash.phash(im.convert("RGB")).hash.flatten())
+                    Hname.append(fn)
+            except Exception:
+                pass
+    H = np.array(H) if H else np.zeros((0, 64), bool)
+
+    rows, skipped = [], []
+    for cls_dir in sorted(MANUAL_ADD.glob("*")):
+        cls = cls_dir.name
+        if not cls_dir.is_dir():
+            continue
+        if cls not in CLASS_PROMPTS:
+            print(f"  ! ข้ามโฟลเดอร์ {cls_dir} (ไม่ใช่ชื่อคลาส)")
+            continue
+        for shop_dir in sorted(p for p in cls_dir.iterdir() if p.is_dir()):
+            source, _, shop = shop_dir.name.partition("__")
+            if not shop:
+                source, shop = "manual", shop_dir.name
+            loose = [p for p in cls_dir.iterdir() if p.is_file() and p.suffix.lower() in IMG_EXT]
+            if loose:
+                print(f"  ! {cls_dir}: มีรูปไม่อยู่ในโฟลเดอร์ร้าน {len(loose)} รูป -> ข้าม (ต้องมี shop_id)")
+            for src in sorted(shop_dir.iterdir()):
+                if src.suffix.lower() not in IMG_EXT:
+                    continue
+                digest = hashlib.md5(src.read_bytes()).hexdigest()[:10]
+                name = f"{cls}_manual_{source}_{digest}{src.suffix.lower()}"
+                if name in known:
+                    continue
+                try:
+                    with Image.open(src) as im:
+                        im.load()
+                        w, h, mode = im.size[0], im.size[1], im.mode
+                        gray = looks_grayscale(im)
+                        hsh = imagehash.phash(im.convert("RGB")).hash.flatten()
+                except Exception:
+                    skipped.append((src, "อ่านไฟล์ไม่ได้"))
+                    continue
+                if min(w, h) < MIN_SIZE:
+                    skipped.append((src, f"เล็กไป {w}x{h}"))
+                    continue
+                if len(H):
+                    d = (H != hsh).sum(axis=1)
+                    if d.min() <= PHASH_THRESHOLD:
+                        skipped.append((src, f"ซ้ำกับ {Hname[int(d.argmin())]}"))
+                        continue
+                H = np.vstack([H, hsh])
+                Hname.append(name)
+                known.add(name)
+                (BASE / cls).mkdir(exist_ok=True)
+                os.link(src, BASE / cls / name)
+                rows.append({
+                    "filename": name, "relpath": f"{cls}/{name}", "class": cls,
+                    "keyword_id": "", "keyword": "", "lang": "manual", "engine": source,
+                    "source": "manual", "shop_id": f"{source}__{shop}", "width": w, "height": h,
+                    "aspect_ratio": round(w / h, 4), "mode": mode, "is_grayscale": gray,
+                    "round": 3, "xclass_dup": False, "src_path": str(src),
+                })
+
+    for src, why in skipped:
+        print(f"  ข้าม {src}: {why}")
+    if not rows:
+        print("ไม่มีรูปใหม่")
+        return
+    new = pd.DataFrame(rows)
+    pd.concat([meta, new]).to_csv(META, index=False)
+    print(f"\nเพิ่ม {len(new)} รูป, ข้าม {len(skipped)} รูป")
+    print(new.groupby(["class", "engine"]).size().unstack(fill_value=0).to_string())
+    print(f"\nร้านใหม่ต่อคลาส: {new.groupby('class')['shop_id'].nunique().to_dict()}\n")
+    apply()
+
+
 if __name__ == "__main__":
-    {"score": score, "sheets": sheets, "decide": decide, "apply": apply, "sync": sync}[sys.argv[1]]()
+    {"score": score, "sheets": sheets, "decide": decide, "apply": apply, "sync": sync, "ingest": ingest}[sys.argv[1]]()
