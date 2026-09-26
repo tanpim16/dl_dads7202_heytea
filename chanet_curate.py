@@ -6,12 +6,15 @@ ChaNet — คัดรูป (Hey Tea group)
 ขั้นที่ 3  decide: แปลงผลคัดมือจาก sheet (curation/sheet_decisions.txt) -> curation/manual.csv
 ขั้นที่ 4  apply : รวม auto-reject + คัดมือ -> ย้ายรูปทิ้งไป tea_dataset/_rejected/,
                    ย้ายรูปผิดคลาสไปคลาสที่ถูก (relabel) และเขียน tea_dataset/metadata_clean.csv
+ขั้นที่ 5  sync  : หลังคนเปิดโฟลเดอร์คลาสแล้ว "ลบ" หรือ "ลากย้ายคลาส" เอง -> บันทึกลง curation/user_review.csv
+                   (ไฟล์แยกจาก manual.csv เพราะ decide เขียน manual.csv ทับทุกครั้ง) แล้ว apply ให้อัตโนมัติ
 
 รัน:
     python chanet_curate.py score
     python chanet_curate.py sheets
     python chanet_curate.py decide
     python chanet_curate.py apply
+    python chanet_curate.py sync     # หลังลบ/ย้ายรูปใน tea_dataset/<class>/ ด้วยมือ
 
 รูปแบบ sheet_decisions.txt (1 บรรทัด / 1 sheet / 1 การกระทำ):
     <sheet>|keep_only|<idx,...>|<reason>          # นอกจาก idx ที่ระบุ = reject
@@ -43,6 +46,7 @@ OUT = Path("curation")
 META = BASE / "metadata.csv"
 SCORES = OUT / "clip_scores.csv"
 MANUAL = OUT / "manual.csv"          # filename,decision(keep/reject/relabel:<class>),reason
+USER_REVIEW = OUT / "user_review.csv"   # ผล sync จากการลบ/ย้ายไฟล์ด้วยมือ (override manual.csv)
 SHEET_DECISIONS = OUT / "sheet_decisions.txt"
 
 AUTO_REJECT = 0.15   # p_drink ต่ำกว่านี้ = ขยะแน่ ๆ (แต่ยังทำ sheet ให้คนตรวจซ้ำ)
@@ -226,6 +230,10 @@ def apply():
         man = pd.read_csv(MANUAL).drop_duplicates("filename", keep="last").set_index("filename")
         dec.update(man["decision"])
         reason.update(man["reason"].fillna(""))
+    if USER_REVIEW.exists():   # คนตรวจรอบสุดท้าย ชนะทุกอย่าง
+        ur = pd.read_csv(USER_REVIEW).drop_duplicates("filename", keep="last").set_index("filename")
+        dec.update(ur["decision"])
+        reason.update(ur["reason"].fillna(""))
     df["decision"] = df["filename"].map(dec)
     df["reject_reason"] = df["filename"].map(reason).fillna("")
 
@@ -265,5 +273,26 @@ def apply():
     print(f"\nImbalance ratio: {n.max() / n.min():.2f}  | รวม {len(clean)} รูป")
 
 
+def sync():
+    clean = pd.read_csv(BASE / "metadata_clean.csv")
+    now = {p.name: c for c in CLASS_PROMPTS if (BASE / c).exists() for p in (BASE / c).iterdir()}
+    rows = []
+    for fn, cls in zip(clean["filename"], clean["class"]):
+        if fn not in now:
+            rows.append((fn, "reject", "user_deleted"))
+        elif now[fn] != cls:
+            rows.append((fn, f"relabel:{now[fn]}", "user_moved"))
+    if not rows:
+        print("ไม่มีการเปลี่ยนแปลง")
+        return
+    new = pd.DataFrame(rows, columns=["filename", "decision", "reason"])
+    if USER_REVIEW.exists():
+        new = pd.concat([pd.read_csv(USER_REVIEW), new])
+    new.drop_duplicates("filename", keep="last").to_csv(USER_REVIEW, index=False)
+    print(f"ลบ {sum(r[2] == 'user_deleted' for r in rows)} รูป, ย้ายคลาส {sum(r[2] == 'user_moved' for r in rows)} รูป"
+          f" -> บันทึกใน {USER_REVIEW}\n")
+    apply()
+
+
 if __name__ == "__main__":
-    {"score": score, "sheets": sheets, "decide": decide, "apply": apply}[sys.argv[1]]()
+    {"score": score, "sheets": sheets, "decide": decide, "apply": apply, "sync": sync}[sys.argv[1]]()
