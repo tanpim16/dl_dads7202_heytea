@@ -313,6 +313,15 @@ MANUAL_ADD = Path("manual_add")
 IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 MIN_SIZE = 350          # เท่ากับรูป scrape — ความละเอียดต่างกันตามแหล่ง อาจกลายเป็น shortcut
 PHASH_THRESHOLD = 6
+# pHash อย่างเดียวจับผิดกับรูปแอป (แก้วเดียวกลางภาพบนพื้นขาว): ชาดำเย็นตรามือ vs ชาไทย ได้ pHash 6
+# รูปซ้ำจริงมี dHash 0-1 ส่วนเคสจับผิดได้ 17 -> ต้องใกล้ทั้งคู่ถึงนับว่าซ้ำ
+DHASH_THRESHOLD = 8
+
+
+def _hashes(im):
+    import imagehash
+    im = im.convert("RGB")
+    return np.concatenate([imagehash.phash(im).hash.flatten(), imagehash.dhash(im).hash.flatten()])
 
 
 def ingest():
@@ -331,11 +340,11 @@ def ingest():
         if fn in where:
             try:
                 with Image.open(where[fn]) as im:
-                    H.append(imagehash.phash(im.convert("RGB")).hash.flatten())
+                    H.append(_hashes(im))
                     Hname.append(fn)
             except Exception:
                 pass
-    H = np.array(H) if H else np.zeros((0, 64), bool)
+    H = np.array(H) if H else np.zeros((0, 128), bool)
 
     rows, skipped = [], []
     for cls_dir in sorted(MANUAL_ADD.glob("*")):
@@ -364,7 +373,7 @@ def ingest():
                     im.load()
                     w, h, mode = im.size[0], im.size[1], im.mode
                     gray = looks_grayscale(im)
-                    hsh = imagehash.phash(im.convert("RGB")).hash.flatten()
+                    hsh = _hashes(im)
             except Exception:
                 skipped.append((src, "อ่านไฟล์ไม่ได้"))
                 continue
@@ -372,8 +381,11 @@ def ingest():
                 skipped.append((src, f"เล็กไป {w}x{h}"))
                 continue
             if len(H):
-                d = (H != hsh).sum(axis=1)
-                if d.min() <= PHASH_THRESHOLD:
+                dp = (H[:, :64] != hsh[:64]).sum(axis=1)
+                dd = (H[:, 64:] != hsh[64:]).sum(axis=1)
+                hit = (dp <= PHASH_THRESHOLD) & (dd <= DHASH_THRESHOLD)
+                if hit.any():
+                    d = np.where(hit, dp + dd, 999)
                     skipped.append((src, f"ซ้ำกับ {Hname[int(d.argmin())]}"))
                     continue
             H = np.vstack([H, hsh])
