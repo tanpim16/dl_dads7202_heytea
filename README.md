@@ -27,22 +27,21 @@ Images collected via **web scraping** (Bing + Baidu, 2 rounds) and curated with 
 ### Done
 - [x] Web scraper (`chanet_scraper.py`) — 2 rounds, Bing + Baidu
 - [x] Curation pipeline (`chanet_curate.py`) — CLIP scoring + manual review
-- [x] Metadata (`tea_dataset/metadata_clean.csv`) — 878 images with EDA fields
+- [x] Metadata (`tea_dataset/metadata_clean.csv`) — 913 images with EDA fields (incl. ~110 from Grab/LINE MAN/FB)
+- [x] Group split (`training/make_split.py` → `tea_dataset/split.csv`)
+- [x] Pilot ResNet-50 (`training/pilot.py`) — test acc 0.918 / macro F1 0.909 (group split), no leakage signal
 - [x] Full training pipeline (`training/`)
 - [x] EDA notebook (`notebooks/01_eda.ipynb`)
 - [x] Pre-trained baseline demo (`notebooks/02_baseline_demo.ipynb`)
 - [x] Kaggle training notebook (`notebooks/03_kaggle_train.ipynb`)
 
 ### To Do
-- [ ] Collect more `cha_dam_yen` photos (currently 82, target 150–200)
-- [ ] Ingest new photos: `python training/ingest_new_photos.py <folder> cha_dam_yen`
+- [x] ~~Collect more `cha_dam_yen` photos~~ — ตกลงใช้ 74 รูป + class weight และระบุในรายงานว่าคลาสนี้ข้อมูลน้อย
 - [ ] Run EDA notebook → export plots for slides
 - [ ] Run baseline demo → screenshot wrong predictions for slides
-- [ ] Upload images to Kaggle dataset `heytea-images`
-- [ ] Run `03_kaggle_train.ipynb` on Kaggle GPU
-  - [ ] Sweep first (`RUN_SWEEP=True`, ~4–6 hr)
-  - [ ] Update `BEST_HPARAMS` in config cell
-  - [ ] Final 5-seed run (`RUN_SWEEP=False`, ~5 hr)
+- [x] Upload images to Kaggle dataset `heytea-images`
+- [ ] Run `03_kaggle_train.ipynb` on Kaggle GPU — **กำลังรัน (final 5-seed, ข้าม sweep)** อย่ารันซ้ำ
+- [ ] Compare imbalance methods (class weight / sampler / focal loss)
 - [ ] Build presentation slides (7 sections)
 
 ---
@@ -53,17 +52,26 @@ Images collected via **web scraping** (Bing + Baidu, 2 rounds) and curated with 
 
 | Class | Count | Status |
 |---|---|---|
-| cha_nom_khai_muk | 221 | OK |
-| cha_thai | 220 | OK |
-| cha_khiao_nom | 202 | OK |
-| cha_phonlamai | 153 | OK |
-| **cha_dam_yen** | **82** | **Need more** |
+| cha_nom_khai_muk | 232 | OK |
+| cha_thai | 223 | OK |
+| cha_khiao_nom | 214 | OK |
+| cha_phonlamai | 170 | OK |
+| **cha_dam_yen** | **74** | **Small — report as limitation** |
 
-**Imbalance handled by:**
-1. `WeightedRandomSampler` — oversamples minority during training
-2. `class_weight` in `CrossEntropyLoss` — penalizes minority errors more
+**Imbalance:** `config.IMBALANCE = "class_weight"` (CrossEntropy weight) — ใช้อย่างเดียว
+(pilot ที่ใช้ทั้ง sampler + class weight ทายชาดำเย็นเกิน: recall 1.0 แต่ precision 0.74)
 
-**Split:** Stratified 70/10/20 (train/val/test), fixed seed=42
+**Split:** Group split 70/10/20 จาก `tea_dataset/split.csv` (ทุก arch / seed ใช้ไฟล์เดียวกัน)
+group = `shop_id` (รูปที่หาเอง) หรือ keyword + engine (รูป scrape) → รูปกลุ่มเดียวกันไม่ข้าม train/test
+
+### เพิ่ม / ลบรูป (อ่านก่อนแก้ dataset)
+
+- **เพิ่มรูป:** ใส่ใน `manual_add/<คลาส>/` (ร้านละ 1 รูป) แล้วรัน `python chanet_curate.py ingest`
+- **ลบรูป:** ลบใน `tea_dataset/<คลาส>/` แล้วรัน `python chanet_curate.py sync`
+- **ทุกครั้งที่รูปเปลี่ยน ต้องรัน `python training/make_split.py` ใหม่ แล้ว push**
+- 🙏 **ไม่ใช้ `training/ingest_new_photos.py` แล้วนะ** เพราะชนกับระบบ sync
+  (รูปที่เพิ่มด้วยสคริปต์นี้จะหายจาก metadata) และไม่เช็ครูปซ้ำ
+- รูปเปลี่ยนแล้วต้องอัป zip รูปขึ้น Kaggle dataset `heytea-images` ใหม่ด้วย (metadata + split อ่านจาก git อยู่แล้ว)
 
 ---
 
@@ -85,19 +93,25 @@ Training: **Two-stage fine-tuning** — Stage 1 freeze backbone, Stage 2 unfreez
 ```
 tea_dataset/
   metadata.csv          # raw metadata
-  metadata_clean.csv    # curated metadata (images on Drive)
+  metadata_clean.csv    # curated metadata (images on Drive / Kaggle)
+  split.csv             # group split train/val/test (สร้างด้วย training/make_split.py)
+
+chanet_curate.py        # คัดรูป: score / sheets / decide / apply / sync / ingest
+manual_add/<class>/     # รูปที่หาเอง (ไม่อยู่ใน git) -> ingest
 
 training/
   config.py             # paths, classes, seeds, BEST_HPARAMS
-  dataset.py            # TeaDataset, stratified split, WeightedRandomSampler
+  dataset.py            # TeaDataset, group split (split.csv), imbalance handling
   models.py             # build_model(), freeze/unfreeze, GradCAM target layers
   trainer.py            # two-stage training loop + W&B logging
   evaluate.py           # metrics, mean±SD, Welch's t-test, plots
   gradcam.py            # GradCAM + correct/wrong visualization
   utils.py              # set_seed(), get_device()
   run_sweep.py          # W&B Bayesian sweep (run first)
-  run_final.py          # 5-seed final evaluation (run after sweep)
-  ingest_new_photos.py  # add new photos to dataset + update metadata
+  make_split.py         # สร้าง group split -> tea_dataset/split.csv
+  pilot.py              # ResNet-50 seed เดียว: group vs random split (leak check)
+  run_final.py          # 5-seed final evaluation (resumable, results/runs.csv)
+  ingest_new_photos.py  # ⚠️ เลิกใช้ — ใช้ chanet_curate.py ingest แทน
   requirements.txt
 
 notebooks/
@@ -118,7 +132,7 @@ notebooks/
 
 ### 2. Data Preparation
 - [ ] Preprocessing steps: resize (224×224), normalize (ImageNet mean/std)
-- [ ] Train/val/test split method (stratified), ratios, per-class counts after split
+- [ ] Train/val/test split method (group split by shop/keyword), ratios, per-class counts after split
 - [ ] **Data augmentation — must be done, online or offline both OK** *(mandatory)*
   - RandomResizedCrop, RandomHorizontalFlip, RandomRotation, ColorJitter
 
