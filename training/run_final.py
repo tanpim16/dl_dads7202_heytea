@@ -79,8 +79,13 @@ def train_arch(arch, train_df, val_df, test_df, test_loader, class_weights, devi
         # Evaluate best checkpoint on TEST set
         model.load_state_dict(torch.load(ckpt_path, map_location=device))
         model.to(device)
-        labels, preds, _ = predict(model, test_loader, device)
+        labels, preds, probs = predict(model, test_loader, device)
         m = compute_metrics(labels, preds)
+        # ผลทำนายรายรูป -> ใช้ทำ error analysis ภายหลัง (ไม่ต้องรันโมเดลใหม่)
+        (RESULTS_DIR / "preds").mkdir(exist_ok=True)
+        test_df.assign(pred=[CLASSES[k] for k in preds],
+                       confidence=np.max(probs, axis=1).round(4)).to_csv(
+            RESULTS_DIR / "preds" / f"{run_name}.csv", index=False)
         wandb.log({f"test/{k}": v for k, v in m.items() if not isinstance(v, list)})
         wandb.finish()
 

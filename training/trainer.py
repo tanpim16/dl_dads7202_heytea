@@ -112,19 +112,22 @@ def _run_stage(model, train_loader, val_loader, optimizer, scheduler,
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def train_two_stage(model, arch, train_loader, val_loader,
-                    class_weights, hparams, device, ckpt_path, seed):
+                    class_weights, hparams, device, ckpt_path, seed, criterion=None):
     """
     Two-stage fine-tuning:
       Stage 1 — freeze backbone, train classifier head only
       Stage 2 — unfreeze top layers, fine-tune with lower LR
     Returns best val F1 achieved across both stages.
+    criterion: loss ที่จะใช้ (เช่น FocalLoss); None = CrossEntropy + class_weights (เดิม)
     """
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
-    criterion = nn.CrossEntropyLoss(
-        weight=class_weights.to(device),
-        label_smoothing=hparams.get("label_smoothing", 0.0),
-    )
+    if criterion is None:
+        criterion = nn.CrossEntropyLoss(
+            weight=class_weights.to(device),
+            label_smoothing=hparams.get("label_smoothing", 0.0),
+        )
+    criterion = criterion.to(device)
 
     # ── Stage 1 ──────────────────────────────────────────────────────────────
     freeze_backbone(model, arch)

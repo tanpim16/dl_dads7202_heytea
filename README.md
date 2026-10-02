@@ -41,7 +41,8 @@ Images collected via **web scraping** (Bing + Baidu, 2 rounds) and curated with 
 - [ ] Run baseline demo → screenshot wrong predictions for slides
 - [x] Upload images to Kaggle dataset `heytea-images`
 - [ ] Run `03_kaggle_train.ipynb` on Kaggle GPU — **กำลังรัน (final 5-seed, ข้าม sweep)** อย่ารันซ้ำ
-- [ ] Compare imbalance methods (class weight / sampler / focal loss)
+- [ ] Compare imbalance methods — `training/run_imbalance.py` พร้อมแล้ว (none / class_weight / sampler / focal, ResNet-50 × 5 seeds) รันบน Kaggle รอบที่ 2 (notebook Option C)
+- [ ] Error analysis — `training/error_analysis.py` (รันในเครื่องด้วย checkpoint จาก Kaggle)
 - [ ] Build presentation slides (7 sections)
 
 ---
@@ -110,7 +111,10 @@ training/
   run_sweep.py          # W&B Bayesian sweep (run first)
   make_split.py         # สร้าง group split -> tea_dataset/split.csv
   pilot.py              # ResNet-50 seed เดียว: group vs random split (leak check)
-  run_final.py          # 5-seed final evaluation (resumable, results/runs.csv)
+  run_final.py          # 5-seed final evaluation (resumable, results/runs.csv, results/preds/)
+  run_imbalance.py      # เทียบวิธีจัดการ imbalance: none / class_weight / sampler / focal
+  losses.py             # FocalLoss
+  error_analysis.py     # คู่คลาสที่สับสน, acc แยกแหล่งรูป, GradCAM รูปที่ทายผิดทั้งหมด
   ingest_new_photos.py  # ⚠️ เลิกใช้ — ใช้ chanet_curate.py ingest แทน
   requirements.txt
 
