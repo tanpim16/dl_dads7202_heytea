@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT         = Path(__file__).parent.parent
 DATA_DIR     = ROOT / "tea_dataset"
 METADATA     = DATA_DIR / "metadata_clean.csv"
+SPLIT_FILE   = DATA_DIR / "split.csv"          # สร้างด้วย make_split.py (commit ขึ้น git)
 CHECKPOINT_DIR = ROOT / "checkpoints"
 RESULTS_DIR  = ROOT / "results"
 
@@ -14,6 +15,11 @@ IDX2CLASS  = {i: c for i, c in enumerate(CLASSES)}
 IMG_SIZE    = 224
 BATCH_SIZE  = 32
 NUM_WORKERS = 4
+
+# วิธีจัดการ class imbalance (เลือกอย่างเดียว ไม่งั้นชดเชยซ้ำ 2 ชั้น):
+#   "class_weight" = CrossEntropy weight ตามความถี่ | "sampler" = WeightedRandomSampler
+#   "both" = ทั้งคู่ (พฤติกรรมเดิม) | "none"
+IMBALANCE = "both"
 
 SPLIT_SEED = 42          # fixed — same data split for every run
 SEEDS      = [11, 22, 33, 44, 55]   # model init seeds → gives mean±SD

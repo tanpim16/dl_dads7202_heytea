@@ -18,9 +18,7 @@ group (รูปใน group เดียวกันต้องอยู่ sp
 import numpy as np
 import pandas as pd
 
-from config import DATA_DIR, METADATA, CLASSES, SPLIT_SEED
-
-SPLIT_FILE = DATA_DIR / "split.csv"
+from config import METADATA, CLASSES, SPLIT_SEED, SPLIT_FILE
 TARGET = {"train": 0.7, "val": 0.1, "test": 0.2}
 N_TRIALS = 20000
 

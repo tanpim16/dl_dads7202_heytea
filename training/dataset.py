@@ -9,8 +9,9 @@ from torchvision import transforms
 from config import (
     DATA_DIR, METADATA, CLASSES, CLASS2IDX,
     IMG_SIZE, BATCH_SIZE, NUM_WORKERS,
-    IMAGENET_MEAN, IMAGENET_STD, SPLIT_SEED,
+    IMAGENET_MEAN, IMAGENET_STD, SPLIT_FILE,
 )
+import config
 
 
 def get_transforms(split: str):
@@ -58,7 +59,7 @@ def make_splits():
     df = pd.read_csv(METADATA)
     df = df[df["class"].isin(CLASSES)].reset_index(drop=True)
 
-    split_file = DATA_DIR / "split.csv"
+    split_file = SPLIT_FILE
     if not split_file.exists():
         raise FileNotFoundError(f"{split_file} not found -> run: python make_split.py")
     sp = pd.read_csv(split_file)[["filename", "group", "split"]]
@@ -76,16 +77,20 @@ def make_loaders(train_df, val_df, test_df, batch_size=BATCH_SIZE):
     val_ds   = TeaDataset(val_df,   get_transforms("val"))
     test_ds  = TeaDataset(test_df,  get_transforms("test"))
 
-    # WeightedRandomSampler balances cha_dam_yen (only ~82 images)
-    labels  = [CLASS2IDX[c] for c in train_df["class"]]
-    counts  = np.bincount(labels, minlength=len(CLASSES)).astype(float)
-    w       = 1.0 / counts
-    sampler = WeightedRandomSampler(
-        [w[l] for l in labels], num_samples=len(labels), replacement=True
-    )
+    # WeightedRandomSampler balances cha_dam_yen (only ~74 images) — ใช้เมื่อ IMBALANCE เป็น sampler/both
+    if config.IMBALANCE in ("sampler", "both"):
+        labels  = [CLASS2IDX[c] for c in train_df["class"]]
+        counts  = np.bincount(labels, minlength=len(CLASSES)).astype(float)
+        w       = 1.0 / counts
+        sampler = WeightedRandomSampler(
+            [w[l] for l in labels], num_samples=len(labels), replacement=True
+        )
+        train_kw = {"sampler": sampler}
+    else:
+        train_kw = {"shuffle": True}
 
     return (
-        DataLoader(train_ds, batch_size=batch_size, sampler=sampler,
+        DataLoader(train_ds, batch_size=batch_size, **train_kw,
                    num_workers=NUM_WORKERS, pin_memory=True),
         DataLoader(val_ds,   batch_size=batch_size, shuffle=False,
                    num_workers=NUM_WORKERS, pin_memory=True),
@@ -95,7 +100,9 @@ def make_loaders(train_df, val_df, test_df, batch_size=BATCH_SIZE):
 
 
 def get_class_weights(train_df):
-    """CrossEntropyLoss class weights (inverse frequency)."""
+    """CrossEntropyLoss class weights (inverse frequency); ทุกคลาส = 1 ถ้า IMBALANCE ไม่ใช่ class_weight/both."""
+    if config.IMBALANCE not in ("class_weight", "both"):
+        return torch.ones(len(CLASSES), dtype=torch.float32)
     labels = [CLASS2IDX[c] for c in train_df["class"]]
     counts = np.bincount(labels, minlength=len(CLASSES)).astype(float)
     weights = torch.tensor(len(labels) / (len(CLASSES) * counts),
