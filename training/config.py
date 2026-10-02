@@ -19,7 +19,7 @@ NUM_WORKERS = 4
 # วิธีจัดการ class imbalance (เลือกอย่างเดียว ไม่งั้นชดเชยซ้ำ 2 ชั้น):
 #   "class_weight" = CrossEntropy weight ตามความถี่ | "sampler" = WeightedRandomSampler
 #   "both" = ทั้งคู่ (พฤติกรรมเดิม) | "none"
-IMBALANCE = "both"
+IMBALANCE = "class_weight"   # pilot (both): dam_yen recall 1.0 แต่ precision 0.74 = ชดเชยเกิน
 
 SPLIT_SEED = 42          # fixed — same data split for every run
 SEEDS      = [11, 22, 33, 44, 55]   # model init seeds → gives mean±SD
