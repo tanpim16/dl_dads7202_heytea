@@ -89,7 +89,7 @@ def unfreeze_top(model: nn.Module, arch: str):
 def get_gradcam_layer(model: nn.Module, arch: str) -> nn.Module:
     """Return the target layer for GradCAM (last spatial feature map)."""
     if arch == "vgg16":
-        return model.features[28]       # last Conv2d before MaxPool
+        return model.features[29]       # ReLU after last Conv2d (features[28] + inplace ReLU breaks backward hooks)
     elif arch == "resnet50":
         return model.layer4[-1]         # last Bottleneck block
     elif arch == "efficientnet_b3":

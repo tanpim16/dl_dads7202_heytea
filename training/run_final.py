@@ -101,14 +101,18 @@ def train_arch(arch, train_df, val_df, test_df, test_loader, class_weights, devi
     if not best_ckpt.exists():
         print(f"  ! ไม่มี checkpoint {best_ckpt.name} (รันใน session อื่น) -> ข้าม CM/GradCAM")
         return
-    model = build_model(arch)
-    model.load_state_dict(torch.load(best_ckpt, map_location=device))
-    model.to(device)
-    labels, preds, _ = predict(model, test_loader, device)
-    plot_confusion_matrix(labels, preds, arch, save_path=RESULTS_DIR / f"cm_{arch}.png")
-    print_classification_report(labels, preds, arch)
-    visualize_gradcam(model, arch, test_loader, device, n_correct=3, n_wrong=3,
-                      save_path=RESULTS_DIR / f"gradcam_{arch}.png")
+    # ภาพประกอบพังได้ แต่ห้ามทำให้ทั้ง run หยุด (Kaggle v1 ล้มเพราะ GradCAM ของ VGG)
+    try:
+        model = build_model(arch)
+        model.load_state_dict(torch.load(best_ckpt, map_location=device))
+        model.to(device)
+        labels, preds, _ = predict(model, test_loader, device)
+        plot_confusion_matrix(labels, preds, arch, save_path=RESULTS_DIR / f"cm_{arch}.png")
+        print_classification_report(labels, preds, arch)
+        visualize_gradcam(model, arch, test_loader, device, n_correct=3, n_wrong=3,
+                          save_path=RESULTS_DIR / f"gradcam_{arch}.png")
+    except Exception as e:
+        print(f"  ! CM/GradCAM ของ {arch} ล้ม ({type(e).__name__}: {e}) -> ข้าม, เทรนต่อ")
 
 
 def summarize():

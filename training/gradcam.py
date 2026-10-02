@@ -20,14 +20,16 @@ class GradCAM:
         self._activations = None
         self._gradients   = None
 
+        # tensor hook แทน register_full_backward_hook: full backward hook พังเมื่อ output ของ layer
+        # ถูกแก้แบบ in-place ต่อ (VGG: Conv -> ReLU(inplace=True)) -> RuntimeError ตอน backward
         target_layer.register_forward_hook(self._fwd_hook)
-        target_layer.register_full_backward_hook(self._bwd_hook)
 
     def _fwd_hook(self, module, inp, out):
-        self._activations = out.detach()
+        self._activations = out.detach().clone()
+        out.register_hook(self._save_grad)
 
-    def _bwd_hook(self, module, grad_in, grad_out):
-        self._gradients = grad_out[0].detach()
+    def _save_grad(self, grad):
+        self._gradients = grad.detach()
 
     def __call__(self, img_tensor: torch.Tensor, class_idx: int = None):
         """
