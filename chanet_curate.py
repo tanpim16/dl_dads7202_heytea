@@ -9,9 +9,12 @@ ChaNet — คัดรูป (Hey Tea group)
 ขั้นที่ 5  sync  : หลังคนเปิดโฟลเดอร์คลาสแล้ว "ลบ" หรือ "ลากย้ายคลาส" เอง -> บันทึกลง curation/user_review.csv
                    (ไฟล์แยกจาก manual.csv เพราะ decide เขียน manual.csv ทับทุกครั้ง) แล้ว apply ให้อัตโนมัติ
 ขั้นที่ 6  ingest: รับรูปที่หามาเอง (Grab / LINE MAN / Facebook ฯลฯ) จาก manual_add/
-                   โครงสร้าง: manual_add/<class>/<source>__<ร้าน_สาขา>/*.jpg
-                   เช่น     manual_add/cha_dam_yen/grab__ชาตรามือ_สยาม/01.jpg
-                   -> ตัดรูปซ้ำ (pHash เทียบกับทุกรูปที่มีอยู่), ตั้ง shop_id = ชื่อโฟลเดอร์ร้าน,
+                   แบบปกติ (ร้านละ 1 รูปต่อคลาส): วางรูปตรง ๆ  manual_add/<class>/*.jpg
+                       -> 1 รูป = 1 group ใน split
+                   ถ้าเอาหลายรูปจากร้านเดียวกัน: ใส่โฟลเดอร์ย่อย (ชื่ออะไรก็ได้) manual_add/<class>/<ร้าน>/*.jpg
+                       -> ทั้งโฟลเดอร์ = 1 group (กันรูปร้านเดียวกันอยู่ทั้ง train และ test)
+                       ใส่ชื่อแหล่งนำหน้าได้ถ้าอยากเก็บไว้ เช่น grab__ชาตรามือ (ไม่บังคับ)
+                   -> ตัดรูปซ้ำ (pHash เทียบกับทุกรูปที่มีอยู่),
                       hardlink เข้า tea_dataset/<class>/ แล้ว apply
                    ไฟล์ใน manual_add/ คือต้นฉบับ ห้ามลบ (เหมือน _raw ของรูปที่ scrape)
 
@@ -278,7 +281,7 @@ def apply():
     print(clean.groupby(["class", "search_class", "keyword_id"]).size().unstack(fill_value=0).to_string())
     man = clean[clean["source"] == "manual"]
     if len(man):
-        print("\nรูปที่หามาเอง: จำนวนร้าน (shop_id) / จำนวนรูป ต่อคลาส — ร้านเยอะดีกว่ารูปเยอะจากร้านเดียว")
+        print("\nรูปที่หามาเอง: จำนวน group / จำนวนรูป ต่อคลาส (รูปเดี่ยว = 1 group)")
         print(man.groupby("class").agg(shops=("shop_id", "nunique"), images=("filename", "size"),
                                        max_per_shop=("shop_id", lambda x: x.value_counts().max())).to_string())
     n = clean["class"].value_counts()
@@ -342,49 +345,49 @@ def ingest():
         if cls not in CLASS_PROMPTS:
             print(f"  ! ข้ามโฟลเดอร์ {cls_dir} (ไม่ใช่ชื่อคลาส)")
             continue
+        items = [(p, "manual", None) for p in sorted(cls_dir.iterdir()) if p.is_file()]   # รูปเดี่ยว
         for shop_dir in sorted(p for p in cls_dir.iterdir() if p.is_dir()):
             source, _, shop = shop_dir.name.partition("__")
             if not shop:
                 source, shop = "manual", shop_dir.name
-            loose = [p for p in cls_dir.iterdir() if p.is_file() and p.suffix.lower() in IMG_EXT]
-            if loose:
-                print(f"  ! {cls_dir}: มีรูปไม่อยู่ในโฟลเดอร์ร้าน {len(loose)} รูป -> ข้าม (ต้องมี shop_id)")
-            for src in sorted(shop_dir.iterdir()):
-                if src.suffix.lower() not in IMG_EXT:
+            items += [(p, source, f"{source}__{shop}") for p in sorted(shop_dir.iterdir()) if p.is_file()]
+        for src, source, shop_id in items:
+            if src.suffix.lower() not in IMG_EXT:
+                continue
+            digest = hashlib.md5(src.read_bytes()).hexdigest()[:10]
+            shop_id = shop_id or f"single__{digest}"
+            name = f"{cls}_manual_{source}_{digest}{src.suffix.lower()}"
+            if name in known:
+                continue
+            try:
+                with Image.open(src) as im:
+                    im.load()
+                    w, h, mode = im.size[0], im.size[1], im.mode
+                    gray = looks_grayscale(im)
+                    hsh = imagehash.phash(im.convert("RGB")).hash.flatten()
+            except Exception:
+                skipped.append((src, "อ่านไฟล์ไม่ได้"))
+                continue
+            if min(w, h) < MIN_SIZE:
+                skipped.append((src, f"เล็กไป {w}x{h}"))
+                continue
+            if len(H):
+                d = (H != hsh).sum(axis=1)
+                if d.min() <= PHASH_THRESHOLD:
+                    skipped.append((src, f"ซ้ำกับ {Hname[int(d.argmin())]}"))
                     continue
-                digest = hashlib.md5(src.read_bytes()).hexdigest()[:10]
-                name = f"{cls}_manual_{source}_{digest}{src.suffix.lower()}"
-                if name in known:
-                    continue
-                try:
-                    with Image.open(src) as im:
-                        im.load()
-                        w, h, mode = im.size[0], im.size[1], im.mode
-                        gray = looks_grayscale(im)
-                        hsh = imagehash.phash(im.convert("RGB")).hash.flatten()
-                except Exception:
-                    skipped.append((src, "อ่านไฟล์ไม่ได้"))
-                    continue
-                if min(w, h) < MIN_SIZE:
-                    skipped.append((src, f"เล็กไป {w}x{h}"))
-                    continue
-                if len(H):
-                    d = (H != hsh).sum(axis=1)
-                    if d.min() <= PHASH_THRESHOLD:
-                        skipped.append((src, f"ซ้ำกับ {Hname[int(d.argmin())]}"))
-                        continue
-                H = np.vstack([H, hsh])
-                Hname.append(name)
-                known.add(name)
-                (BASE / cls).mkdir(exist_ok=True)
-                os.link(src, BASE / cls / name)
-                rows.append({
-                    "filename": name, "relpath": f"{cls}/{name}", "class": cls,
-                    "keyword_id": "", "keyword": "", "lang": "manual", "engine": source,
-                    "source": "manual", "shop_id": f"{source}__{shop}", "width": w, "height": h,
-                    "aspect_ratio": round(w / h, 4), "mode": mode, "is_grayscale": gray,
-                    "round": 3, "xclass_dup": False, "src_path": str(src),
-                })
+            H = np.vstack([H, hsh])
+            Hname.append(name)
+            known.add(name)
+            (BASE / cls).mkdir(exist_ok=True)
+            os.link(src, BASE / cls / name)
+            rows.append({
+                "filename": name, "relpath": f"{cls}/{name}", "class": cls,
+                "keyword_id": "", "keyword": "", "lang": "manual", "engine": source,
+                "source": "manual", "shop_id": shop_id, "width": w, "height": h,
+                "aspect_ratio": round(w / h, 4), "mode": mode, "is_grayscale": gray,
+                "round": 3, "xclass_dup": False, "src_path": str(src),
+            })
 
     for src, why in skipped:
         print(f"  ข้าม {src}: {why}")
