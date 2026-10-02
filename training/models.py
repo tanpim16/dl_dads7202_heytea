@@ -51,12 +51,8 @@ def freeze_backbone(model: nn.Module, arch: str):
     for p in model.parameters():
         p.requires_grad = False
 
-    head = {
-        "vgg16":             model.classifier,
-        "resnet50":          model.fc,
-        "efficientnet_b3":   model.classifier,
-        "mobilenet_v3_large":model.classifier,
-    }[arch]
+    # ResNet has .fc (no .classifier) -> look up lazily, not via an eagerly-built dict
+    head = model.fc if arch == "resnet50" else model.classifier
 
     for p in head.parameters():
         p.requires_grad = True

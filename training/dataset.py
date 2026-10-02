@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from PIL import Image
-from sklearn.model_selection import train_test_split
 
 import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
@@ -52,22 +51,24 @@ class TeaDataset(Dataset):
 
 def make_splits():
     """
-    Stratified 70/10/20 split (train/val/test).
-    Uses a fixed SPLIT_SEED so every model sees the same test set.
+    Group split 70/10/20 (train/val/test) อ่านจาก tea_dataset/split.csv (สร้างด้วย make_split.py)
+    group = shop_id (รูปที่หาเอง) หรือ keyword+engine (รูป scrape) -> รูปกลุ่มเดียวกันไม่ข้าม split
+    ใช้ split เดียวกันทุก arch / ทุก seed
     """
     df = pd.read_csv(METADATA)
     df = df[df["class"].isin(CLASSES)].reset_index(drop=True)
 
-    # Step 1: carve out 20 % test
-    train_val, test = train_test_split(
-        df, test_size=0.20, stratify=df["class"], random_state=SPLIT_SEED
-    )
-    # Step 2: 12.5 % of remainder = 10 % of total → val
-    train, val = train_test_split(
-        train_val, test_size=0.125, stratify=train_val["class"],
-        random_state=SPLIT_SEED
-    )
-    return train, val, test
+    split_file = DATA_DIR / "split.csv"
+    if not split_file.exists():
+        raise FileNotFoundError(f"{split_file} not found -> run: python make_split.py")
+    sp = pd.read_csv(split_file)[["filename", "group", "split"]]
+    df = df.merge(sp, on="filename", how="left")
+    if df["split"].isna().any():
+        raise RuntimeError(f"{int(df['split'].isna().sum())} images in metadata_clean.csv have no split "
+                           "(metadata changed after split) -> run: python make_split.py")
+
+    return tuple(df[df["split"] == s].drop(columns="split").reset_index(drop=True)
+                 for s in ("train", "val", "test"))
 
 
 def make_loaders(train_df, val_df, test_df, batch_size=BATCH_SIZE):

@@ -8,6 +8,7 @@ tea_dataset/**
 !tea_dataset/
 !tea_dataset/metadata.csv
 !tea_dataset/metadata_clean.csv
+!tea_dataset/split.csv
 
 # contact sheet สร้างใหม่ได้ด้วย `chanet_curate.py sheets`
 curation/sheets*/*.jpg
