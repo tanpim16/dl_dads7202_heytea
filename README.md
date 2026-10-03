@@ -40,7 +40,9 @@ Images collected via **web scraping** (Bing + Baidu, 2 rounds) and curated with 
 - [ ] Run EDA notebook → export plots for slides
 - [ ] Run baseline demo → screenshot wrong predictions for slides
 - [x] Upload images to Kaggle dataset `heytea-images`
-- [ ] Run `03_kaggle_train.ipynb` on Kaggle GPU — **กำลังรัน (final 5-seed, ข้าม sweep)** อย่ารันซ้ำ
+- [x] Run `03_kaggle_train.ipynb` on Kaggle GPU (final 5-seed) — ผลอยู่ใน `results_kaggle/`
+  - macro F1: ResNet-50 0.891±0.017 ≈ EfficientNet-B3 0.883±0.017 (p=0.48) > MobileNet-V3 0.839±0.016 > VGG-16 0.795±0.023
+  - error analysis: `results_kaggle/analysis/` (confusion matrix, คู่ที่สับสน, acc แยกแหล่งรูป, รูปยาก 16 รูป)
 - [ ] Compare imbalance methods — `training/run_imbalance.py` พร้อมแล้ว (none / class_weight / sampler / focal, ResNet-50 × 5 seeds) รันบน Kaggle รอบที่ 2 (notebook Option C)
 - [ ] Error analysis — `training/error_analysis.py` (รันในเครื่องด้วย checkpoint จาก Kaggle)
 - [ ] Build presentation slides (7 sections)

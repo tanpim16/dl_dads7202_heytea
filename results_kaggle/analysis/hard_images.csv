@@ -1,0 +1,17 @@
+filename,class,relpath,engine,n_runs,wrong_runs,top_pred,archs_wrong
+cha_nom_khai_muk_manual_manual_6b8a167b86.jpg,cha_nom_khai_muk,cha_nom_khai_muk/cha_nom_khai_muk_manual_manual_6b8a167b86.jpg,manual,20,20,cha_khiao_nom,4.0
+cha_phonlamai_kw03_bing_000038.jpg,cha_phonlamai,cha_phonlamai/cha_phonlamai_kw03_bing_000038.jpg,bing,20,20,cha_dam_yen,4.0
+cha_phonlamai_kw03_bing_000051.jpg,cha_phonlamai,cha_phonlamai/cha_phonlamai_kw03_bing_000051.jpg,bing,20,20,cha_thai,4.0
+cha_khiao_nom_kw00_bing_000029.jpg,cha_khiao_nom,cha_khiao_nom/cha_khiao_nom_kw00_bing_000029.jpg,bing,20,19,cha_thai,4.0
+cha_nom_khai_muk_manual_manual_9be422548a.jpg,cha_nom_khai_muk,cha_nom_khai_muk/cha_nom_khai_muk_manual_manual_9be422548a.jpg,manual,20,18,cha_thai,4.0
+cha_dam_yen_kw04_baidu_000008.jpg,cha_dam_yen,cha_dam_yen/cha_dam_yen_kw04_baidu_000008.jpg,baidu,20,15,cha_thai,3.0
+cha_khiao_nom_kw00_bing_000052.jpg,cha_khiao_nom,cha_khiao_nom/cha_khiao_nom_kw00_bing_000052.jpg,bing,20,15,cha_dam_yen,4.0
+cha_khiao_nom_kw01_bing_000079.jpg,cha_khiao_nom,cha_khiao_nom/cha_khiao_nom_kw01_bing_000079.jpg,bing,20,15,cha_dam_yen,3.0
+cha_phonlamai_kw06_bing_000004.jpg,cha_phonlamai,cha_phonlamai/cha_phonlamai_kw06_bing_000004.jpg,bing,20,14,cha_thai,4.0
+cha_thai_kw01_bing_000032.jpg,cha_thai,cha_thai/cha_thai_kw01_bing_000032.jpg,bing,20,14,cha_nom_khai_muk,3.0
+cha_khiao_nom_kw01_bing_000001.jpg,cha_khiao_nom,cha_khiao_nom/cha_khiao_nom_kw01_bing_000001.jpg,bing,20,13,cha_thai,3.0
+cha_phonlamai_kw03_bing_000054.jpg,cha_phonlamai,cha_phonlamai/cha_phonlamai_kw03_bing_000054.jpg,bing,20,12,cha_dam_yen,4.0
+cha_khiao_nom_kw00_bing_000000.jpg,cha_khiao_nom,cha_khiao_nom/cha_khiao_nom_kw00_bing_000000.jpg,bing,20,11,cha_thai,3.0
+cha_thai_kw01_bing_000000.jpg,cha_thai,cha_thai/cha_thai_kw01_bing_000000.jpg,bing,20,11,cha_nom_khai_muk,3.0
+cha_thai_kw03_baidu_000004.jpg,cha_thai,cha_thai/cha_thai_kw03_baidu_000004.jpg,baidu,20,11,cha_khiao_nom,3.0
+cha_phonlamai_kw03_bing_000003.jpg,cha_phonlamai,cha_phonlamai/cha_phonlamai_kw03_bing_000003.jpg,bing,20,10,cha_thai,2.0

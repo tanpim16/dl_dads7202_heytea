@@ -1,0 +1,13 @@
+metric,Model (1),Model (2),Mean (1),Mean (2),p-value,Hedges g,Significant (p<0.05)
+f1_macro,vgg16,resnet50,0.795,0.8914,0.0001,-4.259,True
+f1_macro,vgg16,efficientnet_b3,0.795,0.8834,0.0002,-3.871,True
+f1_macro,vgg16,mobilenet_v3_large,0.795,0.8386,0.0108,-1.958,True
+f1_macro,resnet50,efficientnet_b3,0.8914,0.8834,0.4848,0.418,False
+f1_macro,resnet50,mobilenet_v3_large,0.8914,0.8386,0.001,2.875,True
+f1_macro,efficientnet_b3,mobilenet_v3_large,0.8834,0.8386,0.003,2.407,True
+f1_weighted,vgg16,resnet50,0.8103,0.8986,0.0,-5.027,True
+f1_weighted,vgg16,efficientnet_b3,0.8103,0.9079,0.0,-5.996,True
+f1_weighted,vgg16,mobilenet_v3_large,0.8103,0.8588,0.0019,-2.627,True
+f1_weighted,resnet50,efficientnet_b3,0.8986,0.9079,0.2701,-0.68,False
+f1_weighted,resnet50,mobilenet_v3_large,0.8986,0.8588,0.0027,2.464,True
+f1_weighted,efficientnet_b3,mobilenet_v3_large,0.9079,0.8588,0.0006,3.329,True
