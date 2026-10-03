@@ -255,6 +255,19 @@ Both tools searched **the same space**, separately for each architecture, with t
   needed more trials to catch up (ResNet-50, EfficientNet-B3 panels).
 - The searches agree on **stage-2 lr = 1e-4** for the three larger models. Mild label smoothing helps VGG-16 and EfficientNet-B3.
 
+**W&B Sweep dashboards** (screenshots; the project is under the NIDA organisation and cannot be made public). Each shows best val F1 per
+run over time, W&B's parameter importance (random-forest importance + correlation with `best_val_f1`), and a parallel-coordinates plot.
+
+| ResNet-50 sweep | VGG-16 sweep |
+|---|---|
+| ![W&B sweep ResNet-50](report/wandb_sweep_resnet50.png) | ![W&B sweep VGG-16](report/wandb_sweep_vgg16.png) |
+
+- **ResNet-50:** `stage2_lr` is by far the most important parameter, with a **positive** correlation: the higher stage-2 learning rate
+  (1e-4) is better. Runs with 1e-5 are the low outliers (~0.77–0.82). This matches the selected value.
+- **VGG-16:** `stage1_epochs` is the most important parameter, with a **negative** correlation: a short head-only stage (5 epochs) works
+  better, after which stage 2 does the real work. Label smoothing correlates positively. Both match the selected VGG-16 values (5 epochs, 0.1).
+- With only 10 runs per sweep these importances are indicative, not conclusive.
+
 ---
 
 ## 5. Evaluation metrics
