@@ -1,0 +1,95 @@
+{
+  "total": 913,
+  "per_class": {
+    "cha_dam_yen": 74,
+    "cha_khiao_nom": 214,
+    "cha_nom_khai_muk": 232,
+    "cha_phonlamai": 170,
+    "cha_thai": 223
+  },
+  "per_class_source": {
+    "cha_dam_yen": {
+      "bing": 47,
+      "baidu": 6,
+      "manual": 21
+    },
+    "cha_khiao_nom": {
+      "bing": 139,
+      "baidu": 51,
+      "manual": 24
+    },
+    "cha_nom_khai_muk": {
+      "bing": 183,
+      "baidu": 28,
+      "manual": 21
+    },
+    "cha_phonlamai": {
+      "bing": 123,
+      "baidu": 22,
+      "manual": 25
+    },
+    "cha_thai": {
+      "bing": 177,
+      "baidu": 25,
+      "manual": 21
+    }
+  },
+  "split": {
+    "cha_dam_yen": {
+      "train": 51,
+      "val": 9,
+      "test": 14
+    },
+    "cha_khiao_nom": {
+      "train": 152,
+      "val": 23,
+      "test": 39
+    },
+    "cha_nom_khai_muk": {
+      "train": 160,
+      "val": 24,
+      "test": 48
+    },
+    "cha_phonlamai": {
+      "train": 120,
+      "val": 15,
+      "test": 35
+    },
+    "cha_thai": {
+      "train": 155,
+      "val": 22,
+      "test": 46
+    }
+  },
+  "imbalance_ratio": 3.14,
+  "width_median": {
+    "cha_dam_yen": 980.0,
+    "cha_khiao_nom": 1024.0,
+    "cha_nom_khai_muk": 1117.0,
+    "cha_phonlamai": 1024.0,
+    "cha_thai": 1001.0
+  },
+  "height_median": {
+    "cha_dam_yen": 1087.5,
+    "cha_khiao_nom": 1399.5,
+    "cha_nom_khai_muk": 1132.5,
+    "cha_phonlamai": 1058.5,
+    "cha_thai": 1024.0
+  },
+  "aspect_median": {
+    "cha_dam_yen": 1.0,
+    "cha_khiao_nom": 0.75,
+    "cha_nom_khai_muk": 0.9,
+    "cha_phonlamai": 1.0,
+    "cha_thai": 1.0
+  },
+  "brightness_mean": {
+    "cha_dam_yen": 136.5,
+    "cha_khiao_nom": 156.4,
+    "cha_nom_khai_muk": 151.1,
+    "cha_phonlamai": 151.4,
+    "cha_thai": 145.0
+  },
+  "grayscale": 0,
+  "min_side": 350
+}

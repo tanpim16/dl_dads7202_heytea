@@ -1,174 +1,356 @@
-# DADS7202 Deep Learning — HeyTea CNN Classifier
+# ChaNet — Thai Tea Drink Classification with Fine-tuned CNNs
 
-**Course:** 1/2569 Deep Learning, GSAS NIDA  
-**Task:** Build an image classifier with CNN on a self-collected dataset  
-**Topic:** Thai tea drink classification (5 classes)
+**DADS7202 Deep Learning (1/2569), GSAS NIDA — Midterm Project**
+**Group:** Hey Tea — _members: (ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_
 
----
+We built our own image dataset of 5 Thai tea drinks and fine-tuned 4 ImageNet-pretrained CNNs
+(VGG-16, ResNet-50, EfficientNet-B3, MobileNet-V3-Large), each trained with 5 random seeds on one fixed,
+leakage-safe **group split**. **All numbers below are on the held-out test set and reported as mean ± SD over 5 seeds.**
 
-## Project Summary
-
-We classify 5 types of Thai tea drinks that are **not** in ImageNet's 1,000 classes:
-
-| Class | Description |
+| Result | |
 |---|---|
-| `cha_dam_yen` | Iced black tea |
-| `cha_khiao_nom` | Green milk tea |
-| `cha_nom_khai_muk` | Bubble milk tea |
-| `cha_phonlamai` | Fruit tea |
-| `cha_thai` | Thai iced tea (orange) |
-
-Images collected via **web scraping** (Bing + Baidu, 2 rounds) and curated with CLIP-score filtering + manual review. Images are shared via Google Drive (not committed to git due to copyright).
+| Best models | **ResNet-50** (macro F1 0.891 ± 0.017) ≈ **EfficientNet-B3** (0.883 ± 0.017); difference not significant (Welch p = 0.48) |
+| Worst model | VGG-16 (macro F1 0.795 ± 0.023), significantly below all others (p ≤ 0.011, \|Hedges' g\| ≥ 1.96) |
+| Main error mode | Drinks with overlapping colour: orange fruit teas → Thai tea, dark fruit teas → black tea |
 
 ---
 
-## Status
-
-### Done
-- [x] Web scraper (`chanet_scraper.py`) — 2 rounds, Bing + Baidu
-- [x] Curation pipeline (`chanet_curate.py`) — CLIP scoring + manual review
-- [x] Metadata (`tea_dataset/metadata_clean.csv`) — 913 images with EDA fields (incl. ~110 from Grab/LINE MAN/FB)
-- [x] Group split (`training/make_split.py` → `tea_dataset/split.csv`)
-- [x] Pilot ResNet-50 (`training/pilot.py`) — test acc 0.918 / macro F1 0.909 (group split), no leakage signal
-- [x] Full training pipeline (`training/`)
-- [x] EDA notebook (`notebooks/01_eda.ipynb`)
-- [x] Pre-trained baseline demo (`notebooks/02_baseline_demo.ipynb`)
-- [x] Kaggle training notebook (`notebooks/03_kaggle_train.ipynb`)
-
-### To Do
-- [x] ~~Collect more `cha_dam_yen` photos~~ — ตกลงใช้ 74 รูป + class weight และระบุในรายงานว่าคลาสนี้ข้อมูลน้อย
-- [ ] Run EDA notebook → export plots for slides
-- [ ] Run baseline demo → screenshot wrong predictions for slides
-- [x] Upload images to Kaggle dataset `heytea-images`
-- [x] Run `03_kaggle_train.ipynb` on Kaggle GPU (final 5-seed) — ผลอยู่ใน `results_kaggle/`
-  - macro F1: ResNet-50 0.891±0.017 ≈ EfficientNet-B3 0.883±0.017 (p=0.48) > MobileNet-V3 0.839±0.016 > VGG-16 0.795±0.023
-  - error analysis: `results_kaggle/analysis/` (confusion matrix, คู่ที่สับสน, acc แยกแหล่งรูป, รูปยาก 16 รูป)
-- [ ] Compare imbalance methods — `training/run_imbalance.py` พร้อมแล้ว (none / class_weight / sampler / focal, ResNet-50 × 5 seeds) รันบน Kaggle รอบที่ 2 (notebook Option C)
-- [ ] Error analysis — `training/error_analysis.py` (รันในเครื่องด้วย checkpoint จาก Kaggle)
-- [ ] Build presentation slides (7 sections)
+## Contents
+1. [Dataset](#1-dataset)
+2. [Data preparation](#2-data-preparation)
+3. [Model architectures](#3-model-architectures)
+4. [Training method](#4-training-method)
+5. [Evaluation metrics](#5-evaluation-metrics)
+6. [Experimental results](#6-experimental-results)
+7. [Discussion & conclusions](#7-discussion--conclusions)
+8. [Reproducibility](#8-reproducibility)
 
 ---
 
-## Dataset
+## 1. Dataset
 
-**Current class counts (metadata_clean.csv):**
+### 1.1 Classes
+None of these drinks has its own class in ImageNet-1k (the closest are generic classes like _eggnog_, _espresso_, _beer glass_).
 
-| Class | Count | Status |
+| Class | Thai | Description |
 |---|---|---|
-| cha_nom_khai_muk | 232 | OK |
-| cha_thai | 223 | OK |
-| cha_khiao_nom | 214 | OK |
-| cha_phonlamai | 170 | OK |
-| **cha_dam_yen** | **74** | **Small — report as limitation** |
+| `cha_thai` | ชาไทย / ชาเย็น | Thai iced milk tea, bright orange |
+| `cha_dam_yen` | ชาดำเย็น | Thai iced black tea, no milk, clear dark brown-orange |
+| `cha_khiao_nom` | ชาเขียวนม | Iced green milk tea / matcha latte |
+| `cha_nom_khai_muk` | ชานมไข่มุก | Bubble milk tea with tapioca pearls |
+| `cha_phonlamai` | ชาผลไม้ | Iced fruit tea (peach, lychee, passion fruit, mixed fruit) |
 
-**Imbalance:** `config.IMBALANCE = "class_weight"` (CrossEntropy weight) — ใช้อย่างเดียว
-(pilot ที่ใช้ทั้ง sampler + class weight ทายชาดำเย็นเกิน: recall 1.0 แต่ precision 0.74)
+![samples](report/samples.jpg)
+_5 random images per class (source in brackets)._
 
-**Split:** Group split 70/10/20 จาก `tea_dataset/split.csv` (ทุก arch / seed ใช้ไฟล์เดียวกัน)
-group = `shop_id` (รูปที่หาเอง) หรือ keyword + engine (รูป scrape) → รูปกลุ่มเดียวกันไม่ข้าม train/test
-
-### เพิ่ม / ลบรูป (อ่านก่อนแก้ dataset)
-
-- **เพิ่มรูป:** ใส่ใน `manual_add/<คลาส>/` (ร้านละ 1 รูป) แล้วรัน `python chanet_curate.py ingest`
-- **ลบรูป:** ลบใน `tea_dataset/<คลาส>/` แล้วรัน `python chanet_curate.py sync`
-- **ทุกครั้งที่รูปเปลี่ยน ต้องรัน `python training/make_split.py` ใหม่ แล้ว push**
-- 🙏 **ไม่ใช้ `training/ingest_new_photos.py` แล้วนะ** เพราะชนกับระบบ sync
-  (รูปที่เพิ่มด้วยสคริปต์นี้จะหายจาก metadata) และไม่เช็ครูปซ้ำ
-- รูปเปลี่ยนแล้วต้องอัป zip รูปขึ้น Kaggle dataset `heytea-images` ใหม่ด้วย (metadata + split อ่านจาก git อยู่แล้ว)
-
----
-
-## Model Architectures (4 chosen)
-
-| Architecture | Params | Reason |
+### 1.2 Data sources and collection
+| Source | How | Images in final set |
 |---|---|---|
-| VGG-16 | ~138M | Simple baseline |
-| ResNet-50 | ~25M | Skip connections, strong standard |
-| EfficientNet-B3 | ~12M | Best for fine-grained tasks |
-| MobileNet-V3-Large | ~5.5M | Lightweight comparison |
+| **Bing image search** | `ddgs` (Bing backend), 8 keywords per class: 6 Thai + 2 English, 100 images per keyword | 669 |
+| **Baidu image search** | `icrawler`, English keywords only (Thai keywords returned unrelated images) | 132 |
+| **Delivery apps / Facebook** (Grab, LINE MAN, shop pages) | collected by hand, **1 image per shop per class** | 112 |
 
-Training: **Two-stage fine-tuning** — Stage 1 freeze backbone, Stage 2 unfreeze top layers.
+Keywords were kept **symmetric across classes** (same templates, same Thai/English mix, same engines) so the model cannot
+learn "search style" instead of drink type. The full keyword list is in [`chanet_scraper.py`](chanet_scraper.py).
+
+### 1.3 Cleaning pipeline
+| Step | Images |
+|---|---|
+| Downloaded (2 scraping rounds) | 4,373 |
+| Near-duplicates removed (perceptual hash, pHash distance ≤ 6, including cross-class duplicates) | − 1,192 → 3,181 |
+| CLIP zero-shot triage, then **every image reviewed by eye** on numbered contact sheets ([`chanet_curate.py`](chanet_curate.py)) | 878 kept (73 moved to their correct class) |
+| Second manual review by team (unusable images deleted) | − 77 → 801 |
+| Delivery-app / Facebook photos added (deduplicated with pHash + dHash against all existing images) | + 112 → **913** |
+
+**Rules applied to every class:** keep real photos where the class drink is the main subject in a glass or cup; remove
+drawings / 3D renders, logos, menus or posters where text dominates, hot tea in ceramic cups, packaged products,
+collages, and **ambiguous drinks** (Thai/green tea with pearls, lemon tea, iced black coffee, obvious AI renders).
+CLIP was used only to *order* images for review. Nothing was removed automatically based on CLIP's class prediction,
+otherwise the dataset would keep only the images CLIP finds easy.
+
+### 1.4 EDA
+
+![counts](report/eda_counts.png)
+
+| | dam_yen | khiao_nom | nom_khai_muk | phonlamai | thai |
+|---|---|---|---|---|---|
+| Images | **74** | 214 | 232 | 170 | 223 |
+| Median width × height (px) | 980 × 1088 | 1024 × 1400 | 1117 × 1133 | 1024 × 1059 | 1001 × 1024 |
+| Median aspect ratio (w/h) | 1.00 | 0.75 | 0.90 | 1.00 | 1.00 |
+| Mean brightness (0–255) | 137 | 156 | 151 | 151 | 145 |
+
+![image stats](report/eda_image_stats.png)
+
+- All images are colour (0 grayscale); the shortest side is ≥ 350 px.
+- Sizes and brightness are similar across classes. `cha_khiao_nom` has more portrait images (aspect 0.75), which disappears after resize + crop.
+
+### 1.5 ⚠️ Class imbalance
+**The dataset is imbalanced: `cha_dam_yen` has 74 images vs. 232 for `cha_nom_khai_muk` (ratio 3.14 : 1).**
+Iced black tea is rarely photographed on its own online, and most search results were Thai milk tea, lemon tea or iced coffee.
+We added 21 hand-collected photos but chose not to inflate the class with lower-quality images.
+
+How we handle it:
+- **Training:** class-weighted cross-entropy (weight ∝ 1 / class frequency, `cha_dam_yen` ≈ 2.5×).
+- **Evaluation:** **macro** F1 is our primary metric (every class counts equally); per-class precision and recall are reported.
+- **Ablation:** 4 imbalance strategies compared in [§6.6](#66-class-imbalance-strategies-ablation).
 
 ---
 
-## Repo Structure
+## 2. Data preparation
+
+### 2.1 Train / validation / test split — group split
+A random split would leak information: images from the same search query (same shop, same stock-photo series) or the same
+shop would end up in both train and test. We therefore split by **group**:
+
+| Image source | Group |
+|---|---|
+| Scraped | search class + keyword + engine (e.g. `cha_thai | kw03 | bing`) |
+| Hand-collected | shop (1 image = 1 group unless several photos came from one shop) |
+
+160 groups were assigned to train / val / test so that **every class and every source is close to 70 / 10 / 20** (max deviation 2.2 % per class, 3.9 % per source).
+No group appears in more than one split. The split is fixed in [`tea_dataset/split.csv`](tea_dataset/split.csv) and used by every model and seed
+([`training/make_split.py`](training/make_split.py)).
+
+| | dam_yen | khiao_nom | nom_khai_muk | phonlamai | thai | **total** |
+|---|---|---|---|---|---|---|
+| train | 51 | 152 | 160 | 120 | 155 | **638** |
+| val | 9 | 23 | 24 | 15 | 22 | **93** |
+| test | 14 | 39 | 48 | 35 | 46 | **182** |
+
+**Leakage check (pilot, ResNet-50, 1 seed):** group split test accuracy 0.918 / macro F1 0.909 vs. random stratified split 0.902 / 0.904.
+Random split was *not* higher, so the scraped groups do not leak. Accuracy ~0.9 (not ~0.99) is plausible for this task.
+
+### 2.2 Preprocessing
+- Resize so the short side = 256, centre crop 224 × 224 (val/test); ImageNet mean/std normalisation.
+
+### 2.3 Data augmentation (online, train only)
+`RandomResizedCrop(224, scale 0.8–1.0)` · `RandomHorizontalFlip(0.5)` · `RandomRotation(15°)` ·
+`ColorJitter(brightness 0.3, contrast 0.3, saturation 0.3, hue 0.1)` · `RandomGrayscale(0.1)`
+
+![augmentation](report/augmentation.png)
+
+---
+
+## 3. Model architectures
+
+### 3.1 Backbones (4 different families)
+| Model | Params | Why |
+|---|---|---|
+| **VGG-16** | 134.3 M | Plain deep stack of 3×3 convolutions, no skip connections: the classic baseline |
+| **ResNet-50** | 23.5 M | Residual (skip) connections + bottleneck blocks: the standard strong backbone |
+| **EfficientNet-B3** | 10.7 M | Compound scaling of depth/width/resolution, MBConv + squeeze-excitation |
+| **MobileNet-V3-Large** | 4.2 M | Depthwise-separable convolutions + NAS-designed blocks: lightweight / mobile |
+
+All use torchvision ImageNet weights (`VGG16_IMAGENET1K_V1`, `ResNet50_IMAGENET1K_V2`, `EfficientNet_B3_IMAGENET1K_V1`, `MobileNet_V3_Large_IMAGENET1K_V2`).
+
+### 3.2 Pre-trained CNN before fine-tuning
+The original ImageNet ResNet-50 has no tea classes, so it falls back to visually similar objects. It cannot separate our 5 drinks:
+
+![baseline](report/baseline_imagenet.png)
+
+Top-1 ImageNet predictions on 10 test images: _chocolate sauce, beaker, beer glass, broccoli, espresso, eggnog ×3, lemon, ice cream_.
+The same ImageNet class (_eggnog_) is predicted for bubble tea, fruit tea and Thai tea.
+
+### 3.3 Removed layers and new classification head
+Only the final 1000-class layer of each model is replaced. Everything before it is kept with its pretrained weights.
+
+| Model | Removed | New head |
+|---|---|---|
+| VGG-16 | `classifier[6]`: Linear(4096 → 1000) | Dropout(0.5) → Linear(4096 → 5). Keeps the two pretrained FC-4096 layers (ReLU + Dropout 0.5) |
+| ResNet-50 | `fc`: Linear(2048 → 1000) | Dropout(0.3) → Linear(2048 → 5), after global average pooling |
+| EfficientNet-B3 | `classifier[1]`: Linear(1536 → 1000) | Dropout(0.3) → Linear(1536 → 5) (original Dropout 0.3 before it is kept) |
+| MobileNet-V3-L | `classifier[3]`: Linear(1280 → 1000) | Dropout(0.3) → Linear(1280 → 5). Keeps Linear(960 → 1280) + Hardswish + Dropout |
+
+---
+
+## 4. Training method
+
+### 4.1 Two-stage fine-tuning
+| | Stage 1: head only | Stage 2: fine-tune top layers |
+|---|---|---|
+| Trainable layers | classifier head only (backbone frozen) | VGG: `features[24:]` (last conv block) + classifier · ResNet: `layer4` + `fc` · EfficientNet / MobileNet: last 3 feature blocks + classifier |
+| Trainable params | VGG 119.6 M · ResNet 10 k · EffNet 7.7 k · MobileNet 1.24 M | VGG 126.6 M · ResNet 15.0 M · EffNet 8.5 M · MobileNet 3.0 M |
+| Optimizer | Adam, lr 1e-3 | AdamW, lr 1e-4 (MobileNet 5e-5) |
+| Max epochs | 10 (MobileNet 5) | 15 (MobileNet 20) |
+| Scheduler | Cosine annealing over the stage | Cosine annealing over the stage |
+
+- **Loss:** cross-entropy with class weights (label smoothing 0.05 for VGG-16, 0 otherwise).
+- **Batch size** 32 · **input** 224 × 224 · **early stopping** patience 5 on validation weighted F1. The best-validation checkpoint
+  of each stage is kept, and stage 2 starts from the best stage-1 weights.
+- **Seeds:** 11, 22, 33, 44, 55 (same set for every model). The seed changes head initialisation, dropout, augmentation and batch order. The split stays fixed.
+- **Hardware:** Kaggle, NVIDIA Tesla T4.
+- **Hyperparameter tuning:** a W&B Bayesian sweep is implemented ([`training/run_sweep.py`](training/run_sweep.py)) but **was not run**
+  because of the GPU budget. All models use the fixed defaults above, chosen before seeing test results. Model selection used the validation set only.
+
+### 4.2 Learning curve
+![learning curve](report/learning_curve.png)
+_ResNet-50, seed 11, pilot run on the same split (the pilot used sampler + class weight; the final runs use class weight only)._
+Stage 1 plateaus around 0.65 val F1. Unfreezing `layer4` in stage 2 lifts it to ~0.95, and train and val stay close (mild overfitting only).
+
+---
+
+## 5. Evaluation metrics
+- **Overall:** accuracy, precision, recall, F1, each as **macro** (unweighted mean over classes, primary because of imbalance) and **weighted** (by class support).
+- **Per class:** precision, recall, F1.
+- **Confusion matrix:** pooled over the 5 seeds, row-normalised (= recall).
+- **Statistics:** mean ± SD (ddof = 1) over 5 seeds; pairwise **Welch's t-test** (unequal variances) and **Hedges' g** effect size
+  (|g| ≈ 0.2 small, 0.5 medium, ≥ 0.8 large).
+
+---
+
+## 6. Experimental results
+**All results are on the test set (182 images), mean ± SD over 5 seeds.** Raw per-run numbers: [`results_kaggle/runs.csv`](results_kaggle/runs.csv).
+
+### 6.1 Model comparison
+| Model | Macro F1 | Macro precision | Macro recall | Weighted F1 | Accuracy |
+|---|---|---|---|---|---|
+| VGG-16 | 0.795 ± 0.023 | 0.825 ± 0.030 | 0.780 ± 0.021 | 0.810 ± 0.018 | 0.811 ± 0.019 |
+| **ResNet-50** | **0.891 ± 0.017** | **0.883 ± 0.018** | **0.910 ± 0.012** | 0.899 ± 0.014 | 0.898 ± 0.014 |
+| EfficientNet-B3 | 0.883 ± 0.017 | 0.878 ± 0.017 | 0.898 ± 0.021 | **0.908 ± 0.011** | **0.906 ± 0.011** |
+| MobileNet-V3-L | 0.839 ± 0.016 | 0.853 ± 0.012 | 0.845 ± 0.023 | 0.859 ± 0.016 | 0.855 ± 0.016 |
+
+![macro F1](results_kaggle/comparison_f1_macro.png)
+_Each dot is one seed. The bar is mean ± SD._
+
+### 6.2 Statistical tests (Welch's t-test, n = 5 vs 5)
+| Pair | Δ macro F1 | p (macro F1) | Hedges' g | p (weighted F1) |
+|---|---|---|---|---|
+| ResNet-50 vs EfficientNet-B3 | +0.008 | **0.485 (n.s.)** | 0.42 | 0.270 (n.s.) |
+| ResNet-50 vs MobileNet-V3 | +0.053 | 0.001 | 2.88 | 0.003 |
+| EfficientNet-B3 vs MobileNet-V3 | +0.045 | 0.003 | 2.41 | 0.001 |
+| MobileNet-V3 vs VGG-16 | +0.044 | 0.011 | 1.96 | 0.002 |
+| ResNet-50 vs VGG-16 | +0.096 | < 0.001 | 4.26 | < 0.001 |
+| EfficientNet-B3 vs VGG-16 | +0.088 | < 0.001 | 3.87 | < 0.001 |
+
+Full table: [`results_kaggle/ttest.csv`](results_kaggle/ttest.csv).
+
+### 6.3 Per-class results (mean ± SD)
+| F1 | dam_yen | khiao_nom | nom_khai_muk | phonlamai | thai |
+|---|---|---|---|---|---|
+| VGG-16 | 0.69 ± 0.06 | 0.81 ± 0.04 | 0.88 ± 0.03 | 0.84 ± 0.06 | 0.75 ± 0.03 |
+| ResNet-50 | **0.85 ± 0.05** | 0.87 ± 0.03 | **0.96 ± 0.02** | **0.93 ± 0.02** | 0.86 ± 0.02 |
+| EfficientNet-B3 | 0.73 ± 0.07 | **0.95 ± 0.01** | 0.95 ± 0.01 | 0.90 ± 0.02 | **0.88 ± 0.01** |
+| MobileNet-V3-L | 0.71 ± 0.04 | 0.87 ± 0.03 | 0.93 ± 0.01 | 0.86 ± 0.01 | 0.82 ± 0.03 |
+
+| Recall / Precision for `cha_dam_yen` | Recall | Precision |
+|---|---|---|
+| VGG-16 | 0.61 ± 0.06 | 0.80 ± 0.08 |
+| ResNet-50 | 1.00 ± 0.00 | 0.74 ± 0.08 |
+| EfficientNet-B3 | 0.86 ± 0.10 | 0.63 ± 0.06 |
+| MobileNet-V3-L | 0.83 ± 0.08 | 0.63 ± 0.03 |
+
+### 6.4 Confusion matrices (5 seeds pooled, row-normalised)
+![confusion matrices](results_kaggle/analysis/cm_all.png)
+
+Most frequent errors (all models, wrong images per run): khiao_nom → thai 3.8 · phonlamai → thai 3.5 ·
+thai → nom_khai_muk 2.6 · phonlamai → dam_yen 2.3 ([`confusion_pairs.csv`](results_kaggle/analysis/confusion_pairs.csv)).
+
+### 6.5 Accuracy by image source
+| Model | Bing (n = 131) | Baidu (n = 28) | Delivery apps / FB (n = 23) |
+|---|---|---|---|
+| VGG-16 | 0.82 | 0.74 | 0.83 |
+| ResNet-50 | 0.91 | 0.87 | 0.88 |
+| EfficientNet-B3 | 0.92 | 0.85 | 0.92 |
+| MobileNet-V3-L | 0.86 | 0.86 | 0.85 |
+
+Hand-collected delivery-app photos score as well as web images, so the models did not learn a "source style".
+Baidu (mostly watermarked stock photos) is lowest, but its n is small.
+
+### 6.6 Class-imbalance strategies (ablation)
+_ResNet-50 × 5 seeds × 4 strategies: no compensation / class-weighted CE / WeightedRandomSampler / focal loss (γ = 2)._
+**Run in progress — results will be added here** ([`training/run_imbalance.py`](training/run_imbalance.py)).
+
+---
+
+## 7. Discussion & conclusions
+
+### 7.1 Best and worst architecture
+- **ResNet-50 and EfficientNet-B3 are the best and statistically tied** (macro F1 0.891 vs 0.883, p = 0.48, small effect g = 0.42).
+  ResNet-50 is slightly better on macro F1 (it never misses `cha_dam_yen`). EfficientNet-B3 is slightly better on weighted F1 / accuracy
+  (stronger on the large classes, especially `cha_khiao_nom` F1 0.95). EfficientNet reaches this with 2.2× fewer parameters.
+- **MobileNet-V3-Large** is ~5 points lower but still respectable for a 4.2 M-parameter model.
+- **VGG-16 is clearly the worst** (all p ≤ 0.011, |g| ≥ 1.96) even though it has the most parameters (134 M). It has no skip connections
+  and keeps two pretrained 4096-unit FC layers trained on only 638 images, which makes overfitting easy. It also has the widest spread
+  between seeds (one seed at 0.754).
+
+### 7.2 Anomalies
+- **`cha_dam_yen` is over-predicted.** ResNet-50 reaches recall 1.00 but precision 0.74, and EfficientNet / MobileNet have precision 0.63.
+  The class weight (~2.5×) on a class with only 51 training images pushes borderline dark drinks (dark fruit teas, some green teas in dark cups)
+  into `cha_dam_yen`. VGG-16 shows the opposite (recall 0.61), confusing dark tea with Thai tea. The imbalance ablation (§6.6) addresses this.
+- **`cha_thai` absorbs most errors** (it is the most common predicted class among mistakes). Orange is shared by Thai tea, peach and passion-fruit teas.
+
+### 7.3 GradCAM: correct vs misclassified
+| | |
+|---|---|
+| ![ResNet-50](results_kaggle/gradcam_resnet50.png) | ![EfficientNet-B3](results_kaggle/gradcam_efficientnet_b3.png) |
+
+_Rows 1–3: correct (green title). Rows 4–6: misclassified (red title). Best seed of each model; the first test images found, so all are `cha_thai`.
+VGG-16 and MobileNet: [`gradcam_vgg16.png`](results_kaggle/gradcam_vgg16.png), [`gradcam_mobilenet_v3_large.png`](results_kaggle/gradcam_mobilenet_v3_large.png)._
+
+- **Correct cases:** activation sits on the liquid inside the cup (colour, ice, milk layering), which is the evidence we want.
+- **Misclassified cases:** attention moves to things that are not the drink: printed **logos on the cup** (ResNet-50: ChaTraMue logo → fruit tea;
+  EfficientNet-B3: cartoon cow logo / bowl logo → bubble tea), **watermarks and background** on stock photos (→ green milk tea),
+  or the glass rim only. The same ChaTraMue image is wrong for ResNet-50 (looks at the logo) but right for EfficientNet-B3 (looks at the tea below it).
+
+### 7.4 Eyeball comparison: ImageNet baseline vs VGG-16 vs ResNet-50
+![eyeball](report/eyeball.png)
+_Same test images. Red title = VGG-16 wrong. Best seed per model (VGG-16 seed 22, ResNet-50 seed 33)._
+The ImageNet model gives object labels (_beaker_, _eggnog_, _broccoli_) that do not match drink types. After fine-tuning both models get the
+easy images right. ResNet-50 also gets cases VGG-16 misses: a black tea in a stock photo with a watermark, a bright green tea next to
+coffee beans, Thai tea in a branded cup.
+
+### 7.5 Error analysis of underperforming classes
+16 test images are misclassified in at least half of the 20 runs (all models × seeds), see [`hard_images.csv`](results_kaggle/analysis/hard_images.csv):
+
+![hard images](results_kaggle/analysis/hard_images.jpg)
+
+Common patterns:
+1. **Colour overlaps between classes.** Passion-fruit / orange teas → Thai tea. **Dark iced tea garnished with an orange slice** → black tea
+   (20/20 runs wrong). Here the label boundary itself is unclear: is it a fruit tea or a black tea with garnish?
+2. **The drink is hidden.** Opaque paper cups, large shop logos or stickers covering the cup.
+3. **Overlays.** Text, hand-drawn hearts, Shutterstock watermarks.
+4. **The key cue is not visible.** Bubble tea whose pearls are hidden at the bottom, very pale Thai tea that looks pink or beige.
+
+The models rely mainly on **colour**. This matches the augmentation choice: `ColorJitter(hue = 0.1)` and `RandomGrayscale` weaken the colour
+cue only slightly, and texture cues (pearls, fruit pieces) are learned less reliably.
+These test images were **not** relabelled or removed after we saw the results, because that would be test-set snooping.
+
+### 7.6 Limitations
+- **Small minority class.** `cha_dam_yen` has only 14 test images (1 image ≈ 7 % recall), so its per-class numbers are noisy.
+- **SD covers training randomness only.** The 5 seeds share one split, so variance from the choice of data is not included.
+- **No hyperparameter search.** Defaults were used for all models, so VGG-16 in particular might improve with tuning.
+- **Web images are biased** toward stylised marketing and stock photos. Real street-stall photos are a minority (112 hand-collected).
+
+### 7.7 Conclusions
+Fine-tuning ImageNet CNNs on fewer than 1,000 curated images separates 5 visually similar tea drinks with **~0.89 macro F1**.
+Architecture matters: modern families (ResNet, EfficientNet) beat VGG by ~9 F1 points with large, significant effects, while ResNet-50 and
+EfficientNet-B3 are statistically tied. The remaining errors come mostly from drinks whose colours overlap between classes and from images
+where the drink is partly hidden. Clearer class definitions (e.g. "fruit tea must show fruit in the drink") and more `cha_dam_yen`
+photos are the most promising improvements.
+
+---
+
+## 8. Reproducibility
 
 ```
+chanet_scraper.py        # scraping (Bing via ddgs, Baidu via icrawler) + pHash dedup -> tea_dataset/metadata.csv
+chanet_curate.py         # CLIP triage, contact sheets, manual decisions, sync/ingest -> metadata_clean.csv
 tea_dataset/
-  metadata.csv          # raw metadata
-  metadata_clean.csv    # curated metadata (images on Drive / Kaggle)
-  split.csv             # group split train/val/test (สร้างด้วย training/make_split.py)
-
-chanet_curate.py        # คัดรูป: score / sheets / decide / apply / sync / ingest
-manual_add/<class>/     # รูปที่หาเอง (ไม่อยู่ใน git) -> ingest
-
+  metadata_clean.csv     # 913 curated images (images themselves are not in git: copyright)
+  split.csv              # fixed group split
 training/
-  config.py             # paths, classes, seeds, BEST_HPARAMS
-  dataset.py            # TeaDataset, group split (split.csv), imbalance handling
-  models.py             # build_model(), freeze/unfreeze, GradCAM target layers
-  trainer.py            # two-stage training loop + W&B logging
-  evaluate.py           # metrics, mean±SD, Welch's t-test, plots
-  gradcam.py            # GradCAM + correct/wrong visualization
-  utils.py              # set_seed(), get_device()
-  run_sweep.py          # W&B Bayesian sweep (run first)
-  make_split.py         # สร้าง group split -> tea_dataset/split.csv
-  pilot.py              # ResNet-50 seed เดียว: group vs random split (leak check)
-  run_final.py          # 5-seed final evaluation (resumable, results/runs.csv, results/preds/)
-  run_imbalance.py      # เทียบวิธีจัดการ imbalance: none / class_weight / sampler / focal
-  losses.py             # FocalLoss
-  error_analysis.py     # คู่คลาสที่สับสน, acc แยกแหล่งรูป, GradCAM รูปที่ทายผิดทั้งหมด
-  ingest_new_photos.py  # ⚠️ เลิกใช้ — ใช้ chanet_curate.py ingest แทน
-  requirements.txt
-
-notebooks/
-  01_eda.ipynb           # EDA plots for slides
-  02_baseline_demo.ipynb # pre-trained CNN baseline (CPU, no training)
-  03_kaggle_train.ipynb  # full training on Kaggle GPU
+  make_split.py          # build split.csv
+  config.py dataset.py models.py trainer.py losses.py utils.py
+  pilot.py               # ResNet-50 group vs random split (leakage check)
+  run_final.py           # 4 archs x 5 seeds -> results/runs.csv, preds/, plots, t-tests
+  run_imbalance.py       # imbalance-strategy ablation
+  analyze_preds.py       # confusion matrices, error pairs, accuracy by source, hard images
+  report_figures.py      # EDA / baseline / eyeball / learning-curve figures in report/
+notebooks/03_kaggle_train.ipynb   # Kaggle GPU runner
+results_kaggle/          # final results used in this report
+report/                  # figures for this README
 ```
 
----
-
-## Teacher Requirements Checklist
-
-### 1. Dataset Description
-- [ ] Data sources (web scraping: Bing, Baidu, keywords used)
-- [ ] Sample images per class
-- [ ] EDA: image count per class, image sizes, aspect ratios, brightness, color vs grayscale
-- [ ] **Imbalanced dataset — must state clearly and explain how it is handled** *(mandatory)*
-
-### 2. Data Preparation
-- [ ] Preprocessing steps: resize (224×224), normalize (ImageNet mean/std)
-- [ ] Train/val/test split method (group split by shop/keyword), ratios, per-class counts after split
-- [ ] **Data augmentation — must be done, online or offline both OK** *(mandatory)*
-  - RandomResizedCrop, RandomHorizontalFlip, RandomRotation, ColorJitter
-
-### 3. Model Architecture
-- [ ] **3–5 significantly different CNN backbones** (VGG+ResNet = 1, not 2)
-- [ ] Brief reason for choosing each architecture
-- [ ] Pre-trained CNN demo on our images **before any fine-tuning** — show wrong predictions
-- [ ] Which layers were removed from the original backbone
-- [ ] New classifier head details: number of layers, connections, parameter values
-
-### 4. Training Method
-- [ ] Which layers are frozen/unfrozen per stage
-- [ ] Optimizer, loss function, initial LR, LR scheduler
-- [ ] Hyperparameter tuning technique (W&B Sweep + Bayesian Optimization)
-
-### 5. Evaluation Metrics
-- [ ] Overall: Accuracy, Precision, Recall, F1 (specify: weighted/macro/micro)
-- [ ] Per-class: Precision, Recall, F1 for each class
-- [ ] Confusion matrix
-
-### 6. Experimental Results
-- [ ] Learning curves (train/val loss + metric per epoch) — state which seed is shown
-- [ ] **All numbers reported as mean±SD** *(mandatory)* — 3–10 runs per architecture
-- [ ] Comparison table across all architectures
-- [ ] Welch's t-test p-values for all pairwise architecture comparisons
-- [ ] Clearly state all results are on **test set**
-
-### 7. Discussion & Conclusions
-- [ ] Which architecture is best/worst and is the difference statistically significant?
-- [ ] Any anomalous results and probable causes
-- [ ] **GradCAM analysis** *(mandatory)* — show both correct AND misclassified cases
-- [ ] Eyeball analysis: pre-trained baseline vs. fine-tuned model A vs. model B
-- [ ] Error analysis for underperforming classes — what pattern do misclassified images share?
+Run on Kaggle (GPU T4): upload the 913 images as a Kaggle dataset, then run `notebooks/03_kaggle_train.ipynb`.
+Locally: `python training/run_final.py`, then `python training/analyze_preds.py --results <dir>` and `python training/report_figures.py`.
+Internal team notes: [`docs/TEAM_NOTES.md`](docs/TEAM_NOTES.md).

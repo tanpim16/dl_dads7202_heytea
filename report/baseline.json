@@ -1,0 +1,58 @@
+{
+  "best_seed": {
+    "vgg16": 22,
+    "resnet50": 33
+  },
+  "imagenet_top1": [
+    [
+      "cha_dam_yen",
+      "chocolate sauce",
+      0.411
+    ],
+    [
+      "cha_dam_yen",
+      "beaker",
+      0.386
+    ],
+    [
+      "cha_khiao_nom",
+      "beer glass",
+      0.061
+    ],
+    [
+      "cha_khiao_nom",
+      "broccoli",
+      0.055
+    ],
+    [
+      "cha_nom_khai_muk",
+      "espresso",
+      0.103
+    ],
+    [
+      "cha_nom_khai_muk",
+      "eggnog",
+      0.138
+    ],
+    [
+      "cha_phonlamai",
+      "lemon",
+      0.126
+    ],
+    [
+      "cha_phonlamai",
+      "eggnog",
+      0.136
+    ],
+    [
+      "cha_thai",
+      "eggnog",
+      0.203
+    ],
+    [
+      "cha_thai",
+      "ice cream",
+      0.325
+    ]
+  ]
+}
