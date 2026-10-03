@@ -395,17 +395,36 @@ All 4 models re-trained with the tuned values (§4.3): same split, same 5 seeds,
 - **`cha_thai` absorbs most errors** (it is the most common predicted class among mistakes). Orange is shared by Thai tea, peach and passion-fruit teas.
 
 ### 7.3 GradCAM: correct vs misclassified
-| | |
-|---|---|
-| ![ResNet-50](results_kaggle/gradcam_resnet50.png) | ![EfficientNet-B3](results_kaggle/gradcam_efficientnet_b3.png) |
+GradCAM on the **last conv block** of the best seed of each top model (ResNet-50 seed 33, EfficientNet-B3 seed 22), computed for
+**every misclassified test image** (15 each) and for 2 correct images per class. Re-run locally from the Kaggle checkpoints; the
+predictions match the Kaggle run exactly (accuracy 0.918 for both). Code: [`training/error_analysis.py`](training/error_analysis.py).
 
-_Rows 1–3: correct (green title). Rows 4–6: misclassified (red title). Best seed of each model; the first test images found, so all are `cha_thai`.
-VGG-16 and MobileNet: [`gradcam_vgg16.png`](results_kaggle/gradcam_vgg16.png), [`gradcam_mobilenet_v3_large.png`](results_kaggle/gradcam_mobilenet_v3_large.png)._
+**Correct predictions (ResNet-50, 2 per class):**
+![ResNet-50 correct](results_kaggle/gradcam_full/resnet50_seed33_correct.jpg)
 
-- **Correct cases:** activation sits on the liquid inside the cup (colour, ice, milk layering), which is the evidence we want.
-- **Misclassified cases:** attention moves to things that are not the drink: printed **logos on the cup** (ResNet-50: ChaTraMue logo → fruit tea;
-  EfficientNet-B3: cartoon cow logo / bowl logo → bubble tea), **watermarks and background** on stock photos (→ green milk tea),
-  or the glass rim only. The same ChaTraMue image is wrong for ResNet-50 (looks at the logo) but right for EfficientNet-B3 (looks at the tea below it).
+**All misclassified test images, ResNet-50** (title = true class / predicted class and confidence, most confident first):
+![ResNet-50 wrong](results_kaggle/gradcam_full/resnet50_seed33_wrong.jpg)
+
+**All misclassified test images, EfficientNet-B3:**
+![EfficientNet-B3 wrong](results_kaggle/gradcam_full/efficientnet_b3_seed22_wrong.jpg)
+
+What GradCAM shows:
+- **Correct predictions look at the liquid**: the centre of the drink for Thai and green milk tea, the pearl layer at the bottom of bubble
+  tea, the fruit slices inside fruit tea. These are the cues a person would use.
+- **Fruit tea → black tea / Thai tea (the most frequent error):** on the dark iced fruit teas the heatmap sits on the **clear brown
+  liquid**, not on the orange slice on the rim, so the model reads "dark clear tea" = `cha_dam_yen`. On the passion-fruit tea it sits on
+  the orange-yellow middle layer and ignores the seeds and passion fruit beside the cup, so it reads "orange milky drink" = `cha_thai`.
+  **Colour wins over the fruit.**
+- **Logos and printed cups:** the ChaTraMue Thai tea (→ fruit tea) and the green tea with a big red shop logo (→ Thai tea) are wrong
+  because the heatmap is on the **logo**, which is red-orange. For the printed paper cup (→ black tea / bubble tea) there is no liquid
+  to look at, so the model focuses on the cup print.
+- **Watermarks and background:** on Shutterstock images both models put part of their attention on the watermark or the table and
+  predict a lighter class (Thai tea → green milk tea).
+- **Text overlays:** the bubble tea with hand-drawn hearts and Thai text is wrong in nearly all runs (→ Thai tea). The heatmap is on the
+  milky body of the drink, while the pearls are small and partly hidden behind the drawing.
+- **The two models disagree on several images.** EfficientNet-B3 gets the ChaTraMue cup right by looking *below* the logo, but it
+  misreads a dark black tea in a stock photo as Thai tea, which ResNet-50 classifies correctly. This is consistent with the two being
+  statistically tied overall while making different individual mistakes.
 
 ### 7.4 Eyeball comparison: ImageNet baseline vs VGG-16 vs ResNet-50
 ![eyeball](report/eyeball.png)
