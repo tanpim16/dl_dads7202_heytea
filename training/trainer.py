@@ -71,7 +71,7 @@ def _eval_epoch(model, loader, criterion, device):
 
 def _run_stage(model, train_loader, val_loader, optimizer, scheduler,
                criterion, device, max_epochs, patience, ckpt_path,
-               stage_name, epoch_offset=0):
+               stage_name, epoch_offset=0, epoch_callback=None):
     best_val_f1, no_improve = 0.0, 0
 
     for epoch in range(1, max_epochs + 1):
@@ -95,6 +95,8 @@ def _run_stage(model, train_loader, val_loader, optimizer, scheduler,
         print(f"  [{stage_name}] E{epoch:02d} | "
               f"tr {tr_loss:.4f}/{tr_f1:.4f} | "
               f"vl {vl_loss:.4f}/{vl_f1:.4f}")
+        if epoch_callback is not None:   # เช่น Optuna pruning (อาจ raise TrialPruned)
+            epoch_callback(stage_name, epoch, vl_f1)
 
         if vl_f1 > best_val_f1:
             best_val_f1 = vl_f1
@@ -112,7 +114,8 @@ def _run_stage(model, train_loader, val_loader, optimizer, scheduler,
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def train_two_stage(model, arch, train_loader, val_loader,
-                    class_weights, hparams, device, ckpt_path, seed, criterion=None):
+                    class_weights, hparams, device, ckpt_path, seed, criterion=None,
+                    epoch_callback=None):
     """
     Two-stage fine-tuning:
       Stage 1 — freeze backbone, train classifier head only
@@ -141,7 +144,7 @@ def train_two_stage(model, arch, train_loader, val_loader,
     best_s1 = _run_stage(
         model, train_loader, val_loader, opt1, sch1, criterion, device,
         max_epochs=hparams["stage1_epochs"], patience=5,
-        ckpt_path=ckpt_path, stage_name="stage1",
+        ckpt_path=ckpt_path, stage_name="stage1", epoch_callback=epoch_callback,
     )
 
     # Restore best stage-1 weights before unfreezing
@@ -159,7 +162,7 @@ def train_two_stage(model, arch, train_loader, val_loader,
         model, train_loader, val_loader, opt2, sch2, criterion, device,
         max_epochs=hparams["stage2_epochs"], patience=5,
         ckpt_path=ckpt_path, stage_name="stage2",
-        epoch_offset=hparams["stage1_epochs"],
+        epoch_offset=hparams["stage1_epochs"], epoch_callback=epoch_callback,
     )
 
     best = max(best_s1, best_s2)

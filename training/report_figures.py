@@ -253,3 +253,61 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def parse_kaggle_log(log: Path) -> pd.DataFrame:
+    """แยก epoch ของทุก arch/seed จาก log ของ run_final (header 'Stage N — <arch>  seed=<s>')"""
+    rows, arch, seed = [], None, None
+    for line in log.read_text(errors="ignore").splitlines():
+        h = re.search(r"Stage \d — (\S+)\s+seed=(\d+)", line)
+        if h:
+            arch, seed = h.group(1), int(h.group(2))
+            continue
+        m = re.search(r"\[(stage\d)\] E(\d+) \| tr ([\d.]+)/([\d.]+) \| vl ([\d.]+)/([\d.]+)", line)
+        if m and arch:
+            rows.append({"arch": arch, "seed": seed, "stage": m.group(1), "epoch": int(m.group(2)),
+                         "tr_loss": float(m.group(3)), "tr_f1": float(m.group(4)),
+                         "vl_loss": float(m.group(5)), "vl_f1": float(m.group(6))})
+    df = pd.DataFrame(rows)
+    s1 = df[df["stage"] == "stage1"].groupby(["arch", "seed"])["epoch"].max().rename("s1_len")
+    df = df.join(s1, on=["arch", "seed"])
+    df["x"] = np.where(df["stage"] == "stage1", df["epoch"], df["epoch"] + df["s1_len"])
+    return df
+
+
+def learning_curves_all(log: Path, runs_csv: Path, out: Path):
+    """4 arch x (loss, F1): median seed (ตาม test macro F1) เส้นหนา + seed อื่นเส้นจาง (val)"""
+    df = parse_kaggle_log(log)
+    runs = pd.read_csv(runs_csv)
+    archs = [a for a in ["vgg16", "resnet50", "efficientnet_b3", "mobilenet_v3_large"] if a in set(df["arch"])]
+    fig, axes = plt.subplots(len(archs), 2, figsize=(12, 3.1 * len(archs)))
+    med = {}
+    for r, a in enumerate(archs):
+        rr = runs[runs["arch"] == a].sort_values("f1_macro").reset_index(drop=True)
+        ms = int(rr.loc[len(rr) // 2, "seed"])
+        med[a] = ms
+        for c, (k, lab) in enumerate([("loss", "loss"), ("f1", "weighted F1")]):
+            ax = axes[r, c]
+            for s, g in df[df["arch"] == a].groupby("seed"):
+                if s != ms:
+                    ax.plot(g["x"], g[f"vl_{k}"], color="tab:orange", alpha=0.18, lw=1)
+            g = df[(df["arch"] == a) & (df["seed"] == ms)]
+            ax.plot(g["x"], g[f"tr_{k}"], "o-", ms=3, color="tab:blue", label=f"train (seed {ms})")
+            ax.plot(g["x"], g[f"vl_{k}"], "o-", ms=3, color="tab:orange", label=f"val (seed {ms})")
+            ax.axvline(g["s1_len"].iloc[0] + 0.5, color="gray", ls="--", lw=1)
+            ax.set_title(f"{a} — {lab}   (bold = seed {ms})", fontsize=10)
+            ax.set_xlabel("epoch (dashed line = start of stage 2)")
+            if r == 0:
+                ax.plot([], [], color="tab:orange", alpha=0.3, label="val, other 4 seeds")
+                ax.legend(fontsize=8)
+    fig.suptitle("Learning curves — final Kaggle runs. Bold = median seed by test macro F1; faint = val of the other seeds",
+                 fontsize=11)
+    plt.tight_layout()
+    plt.savefig(out / "learning_curves_all.png", dpi=130)
+    plt.close()
+    # สรุปช่องว่าง train-val ตอนจบ (ไว้เขียนเรื่อง overfit)
+    last = df.sort_values("x").groupby(["arch", "seed"]).tail(1)
+    gap = last.assign(gap_f1=last["tr_f1"] - last["vl_f1"], gap_loss=last["vl_loss"] - last["tr_loss"]) \
+              .groupby("arch")[["tr_f1", "vl_f1", "gap_f1", "tr_loss", "vl_loss", "gap_loss"]].agg(["mean", "std"]).round(3)
+    epochs = df.groupby(["arch", "seed"])["x"].max().groupby("arch").agg(["mean", "min", "max"])
+    return med, gap, epochs

@@ -193,10 +193,27 @@ Only the final 1000-class layer of each model is replaced. Everything before it 
 - **Hyperparameter tuning:** a W&B Bayesian sweep is implemented ([`training/run_sweep.py`](training/run_sweep.py)) but **was not run**
   because of the GPU budget. All models use the fixed defaults above, chosen before seeing test results. Model selection used the validation set only.
 
-### 4.2 Learning curve
-![learning curve](report/learning_curve.png)
-_ResNet-50, seed 11, pilot run on the same split (the pilot used sampler + class weight; the final runs use class weight only)._
-Stage 1 plateaus around 0.65 val F1. Unfreezing `layer4` in stage 2 lifts it to ~0.95, and train and val stay close (mild overfitting only).
+### 4.2 Learning curves (final runs, all 4 models)
+![learning curves](report/learning_curves_all.png)
+_Parsed from the Kaggle log of the final run ([`results_kaggle/logs/final_v2.log`](results_kaggle/logs/final_v2.log)).
+Bold lines = the **median seed** of each model by test macro F1 (VGG-16 11, ResNet-50 44, EfficientNet-B3 11, MobileNet-V3 11).
+Faint lines = validation curves of the other 4 seeds. Dashed line = start of stage 2._
+
+| At the last epoch (mean ± SD, 5 seeds) | train F1 | val F1 | train − val F1 | epochs run (min–max) |
+|---|---|---|---|---|
+| VGG-16 | 0.958 ± 0.011 | 0.902 ± 0.021 | 0.056 | 16–18 |
+| ResNet-50 | 0.982 ± 0.007 | 0.933 ± 0.018 | 0.049 | 18–25 |
+| EfficientNet-B3 | 0.929 ± 0.010 | 0.915 ± 0.017 | 0.014 | 18–25 |
+| MobileNet-V3-L | 0.934 ± 0.016 | 0.895 ± 0.009 | 0.039 | 11–15 |
+
+- **Stage 1 (frozen backbone) underfits.** For ResNet-50 and EfficientNet-B3 val F1 plateaus at ~0.72–0.80 with only the linear head trainable.
+  Unfreezing the top blocks in stage 2 gives the main jump (+0.15–0.20 val F1). This justifies the two-stage design.
+- **No strong overfitting.** The final train-val gap is small (0.01–0.06). ResNet-50 has the largest train fit (0.98) but its validation loss
+  keeps decreasing and then flattens instead of rising. **VGG-16 has the highest validation loss (0.51 vs 0.21–0.28)** and the noisiest val
+  curve, which matches its worst test score.
+- **Early stopping triggered** in most runs (patience 5), so models stop once val F1 stops improving (VGG-16 after 16–18 of 25 epochs).
+- Train F1 is sometimes *below* val F1 early on. Train metrics are measured on augmented images with dropout active, while val uses clean
+  centre crops. This is expected and not a leak.
 
 ---
 

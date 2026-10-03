@@ -1,64 +1,65 @@
 """
-W&B Bayesian hyperparameter sweep.
+Hyperparameter tuning ด้วย W&B Sweep (Bayesian optimization) — แยก sweep ต่อ architecture
+ต้องมี WANDB_API_KEY (Kaggle: Add-ons -> Secrets)
 
-Run:
-    python run_sweep.py
+    python run_sweep.py                     # ทุก arch, 10 runs/arch
+    python run_sweep.py --archs resnet50 --count 15
 
-After the sweep completes, inspect W&B and fill in BEST_HPARAMS in config.py,
-then run run_final.py.
+- search space เดียวกับ Optuna (tuning.SEARCH_SPACE), seed 42 ทุก run
+- metric ที่ sweep optimize = best_val_f1 (best validation weighted F1 ของ run นั้น)
+- ผลทุก run ถูกบันทึกลง results/tuning/trials.csv ด้วย (tool = wandb_sweep) เพื่อเทียบกับ Optuna
 """
+import argparse
+import os
+import time
+
 import wandb
-from config import ARCHS, CHECKPOINT_DIR
-from dataset import make_splits, make_loaders, get_class_weights
-from models import build_model
-from trainer import train_two_stage
-from utils import set_seed, get_device
+
+from config import ARCHS
+from tuning import SEARCH_SPACE, train_trial, log_trial, select_best
 
 WANDB_PROJECT = "heytea-cnn"
-SWEEP_COUNT   = 60   # total sweep runs (15 per arch on average)
 
-SWEEP_CONFIG = {
-    "method": "bayes",
-    "metric": {"name": "stage2/val_f1", "goal": "maximize"},
-    "parameters": {
-        "arch":            {"values": ARCHS},
-        "stage1_lr":       {"values": [0.0005, 0.001]},
-        "stage1_epochs":   {"values": [5, 10]},
-        "stage2_lr":       {"values": [0.00001, 0.00005, 0.0001]},
-        "stage2_epochs":   {"values": [10, 15, 20]},
-        "label_smoothing": {"values": [0.0, 0.05, 0.1]},
-    },
-}
+
+def sweep_config(arch):
+    return {
+        "name": f"sweep_{arch}",
+        "method": "bayes",
+        "metric": {"name": "best_val_f1", "goal": "maximize"},
+        "parameters": {"arch": {"value": arch}, **{k: {"values": v} for k, v in SEARCH_SPACE.items()}},
+    }
 
 
 def sweep_train():
     run = wandb.init()
-    cfg = wandb.config
+    cfg = dict(run.config)
+    arch = cfg["arch"]
+    hp = {k: cfg[k] for k in SEARCH_SPACE}
+    t0 = time.time()
+    try:
+        value = train_trial(arch, hp, f"sweep_{run.id}")
+        wandb.log({"best_val_f1": value})
+        log_trial("wandb_sweep", arch, run.id, hp, value, "complete", time.time() - t0)
+    except Exception as e:
+        log_trial("wandb_sweep", arch, run.id, hp, None, f"failed: {type(e).__name__}", time.time() - t0)
+        raise
+    finally:
+        run.finish()
 
-    device = get_device()
-    set_seed(42)
 
-    train_df, val_df, test_df = make_splits()
-    train_loader, val_loader, _ = make_loaders(train_df, val_df, test_df)
-    class_weights = get_class_weights(train_df)
-
-    model    = build_model(cfg.arch)
-    ckpt     = CHECKPOINT_DIR / f"sweep_{run.id}.pt"
-    hparams  = {
-        "stage1_lr":       cfg.stage1_lr,
-        "stage1_epochs":   cfg.stage1_epochs,
-        "stage2_lr":       cfg.stage2_lr,
-        "stage2_epochs":   cfg.stage2_epochs,
-        "label_smoothing": cfg.label_smoothing,
-    }
-
-    train_two_stage(model, cfg.arch, train_loader, val_loader,
-                    class_weights, hparams, device, ckpt, seed=42)
-
-    if ckpt.exists():
-        ckpt.unlink()   # save disk space during sweep
+def main(archs=None, count=10):
+    if not os.environ.get("WANDB_API_KEY"):
+        raise SystemExit("W&B Sweep ต้องมี WANDB_API_KEY (Kaggle: Add-ons -> Secrets)")
+    for arch in archs or ARCHS:
+        sweep_id = wandb.sweep(sweep_config(arch), project=WANDB_PROJECT)
+        print(f"\nW&B Sweep — {arch}: {count} runs (sweep id {sweep_id})")
+        wandb.agent(sweep_id, function=sweep_train, count=count)
+    select_best()
 
 
 if __name__ == "__main__":
-    sweep_id = wandb.sweep(SWEEP_CONFIG, project=WANDB_PROJECT)
-    wandb.agent(sweep_id, function=sweep_train, count=SWEEP_COUNT)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--archs", nargs="+", choices=ARCHS)
+    ap.add_argument("--count", type=int, default=10)
+    a = ap.parse_args()
+    main(a.archs, a.count)

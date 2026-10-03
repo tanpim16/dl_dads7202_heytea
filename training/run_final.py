@@ -13,16 +13,20 @@ Run:
     python run_final.py                          # ทุก arch ใน config.ARCHS
     python run_final.py --archs resnet50 vgg16   # บาง arch (แบ่งรันหลาย session ได้)
     python run_final.py --summary-only           # สรุปผลจาก runs.csv อย่างเดียว ไม่เทรน
+    python run_final.py --hparams ../results/tuning/best_hparams.json --out ../results_tuned
+                                                 # รันซ้ำด้วย hyperparameter ที่ tune แล้ว (เขียนแยกโฟลเดอร์)
 """
 import argparse
 import json
 import os
+from pathlib import Path
 
 import torch
 import numpy as np
 import pandas as pd
 import wandb
 
+import config
 from config import ARCHS, SEEDS, CHECKPOINT_DIR, RESULTS_DIR, BEST_HPARAMS, CLASSES
 from dataset import make_splits, make_loaders, get_class_weights
 from models import build_model
@@ -38,6 +42,24 @@ from utils import set_seed, get_device
 
 WANDB_PROJECT = "heytea-cnn"
 PRIMARY = "f1_macro"   # metric หลัก: macro เพราะคลาสไม่สมดุล (cha_dam_yen น้อย)
+
+
+def set_output(results_dir, checkpoint_dir=None):
+    """เปลี่ยนโฟลเดอร์ผลลัพธ์ (เช่น results_tuned) โดยไม่ทับผลรอบ default"""
+    global RESULTS_DIR, CHECKPOINT_DIR
+    RESULTS_DIR = config.RESULTS_DIR = Path(results_dir)
+    if checkpoint_dir:
+        CHECKPOINT_DIR = config.CHECKPOINT_DIR = Path(checkpoint_dir)
+
+
+def load_hparams(path):
+    """อ่าน best_hparams.json (จาก tuning) ทับค่า default ต่อ arch"""
+    tuned = json.loads(Path(path).read_text())
+    for arch, hp in tuned.items():
+        BEST_HPARAMS[arch] = {**BEST_HPARAMS.get(arch, {}), **hp}
+    (RESULTS_DIR / "hparams_used.json").write_text(json.dumps(BEST_HPARAMS, indent=2))
+    print("ใช้ hyperparameter จาก", path)
+    print(json.dumps(BEST_HPARAMS, indent=2))
 
 
 def runs_path():
@@ -160,9 +182,13 @@ def summarize():
     print(f"\nAll results saved to {RESULTS_DIR}/")
 
 
-def run_all(archs=None, summary_only=False):
+def run_all(archs=None, summary_only=False, hparams=None, out=None):
+    if out:
+        set_output(out)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    if hparams:
+        load_hparams(hparams)
 
     if not summary_only:
         device = get_device()
@@ -188,5 +214,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--archs", nargs="+", choices=ARCHS)
     ap.add_argument("--summary-only", action="store_true")
+    ap.add_argument("--hparams", help="best_hparams.json จาก tuning")
+    ap.add_argument("--out", help="โฟลเดอร์ผลลัพธ์ (default config.RESULTS_DIR)")
     a = ap.parse_args()
-    run_all(a.archs, a.summary_only)
+    run_all(a.archs, a.summary_only, a.hparams, a.out)
