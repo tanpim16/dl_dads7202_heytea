@@ -1,7 +1,13 @@
 # ChaNet — Thai Tea Drink Classification with Fine-tuned CNNs
 
 **DADS7202 Deep Learning (1/2569), GSAS NIDA — Midterm Project**
-**Group:** Hey Tea — _members: (ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_ · _(ชื่อ – รหัสนักศึกษา)_
+**Group:** Hey Tea
+
+| Name | Student ID |
+|---|---|
+| กฤตณัฐ ทับทิมแก้ว | 6810422006 |
+| พิมกนิษฐ์ ทองศรีแก้ว | 6810422011 |
+| สมฤดี การภักดี | 6810422023 |
 
 We built our own image dataset of 5 Thai tea drinks and fine-tuned 4 ImageNet-pretrained CNNs
 (VGG-16, ResNet-50, EfficientNet-B3, MobileNet-V3-Large), each trained with 5 random seeds on one fixed,
