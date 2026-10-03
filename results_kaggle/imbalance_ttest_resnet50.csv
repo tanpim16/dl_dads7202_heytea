@@ -1,0 +1,13 @@
+metric,Method (1),Method (2),Mean (1),Mean (2),p-value,Hedges g,Significant (p<0.05)
+f1_macro,none,class_weight,0.9024,0.8914,0.2739,0.676,False
+f1_macro,none,sampler,0.9024,0.8895,0.0971,1.085,False
+f1_macro,none,focal,0.9024,0.881,0.0865,1.151,False
+f1_macro,class_weight,sampler,0.8914,0.8895,0.8311,0.127,False
+f1_macro,class_weight,focal,0.8914,0.881,0.407,0.501,False
+f1_macro,sampler,focal,0.8895,0.881,0.4315,0.484,False
+recall_cha_dam_yen,none,class_weight,0.9571,1.0,0.208,-0.857,False
+recall_cha_dam_yen,none,sampler,0.9571,0.9857,0.4062,-0.511,False
+recall_cha_dam_yen,none,focal,0.9571,0.9143,0.3053,0.626,False
+recall_cha_dam_yen,class_weight,sampler,1.0,0.9857,0.3739,0.571,False
+recall_cha_dam_yen,class_weight,focal,1.0,0.9143,0.0327,1.832,True
+recall_cha_dam_yen,sampler,focal,0.9857,0.9143,0.0557,1.346,False

@@ -98,7 +98,8 @@ We added 21 hand-collected photos but chose not to inflate the class with lower-
 How we handle it:
 - **Training:** class-weighted cross-entropy (weight ∝ 1 / class frequency, `cha_dam_yen` ≈ 2.5×).
 - **Evaluation:** **macro** F1 is our primary metric (every class counts equally); per-class precision and recall are reported.
-- **Ablation:** 4 imbalance strategies compared in [§6.6](#66-class-imbalance-strategies-ablation).
+- **Ablation:** 4 imbalance strategies compared in [§6.6](#66-class-imbalance-strategies-ablation). Result: no strategy is
+  significantly better; class weighting raises `cha_dam_yen` recall to 1.00 at the cost of precision.
 
 ---
 
@@ -285,8 +286,28 @@ Hand-collected delivery-app photos score as well as web images, so the models di
 Baidu (mostly watermarked stock photos) is lowest, but its n is small.
 
 ### 6.6 Class-imbalance strategies (ablation)
-_ResNet-50 × 5 seeds × 4 strategies: no compensation / class-weighted CE / WeightedRandomSampler / focal loss (γ = 2)._
-**Run in progress — results will be added here** ([`training/run_imbalance.py`](training/run_imbalance.py)).
+_ResNet-50, same split, same 5 seeds, default hyperparameters. Only the imbalance strategy changes
+([`training/run_imbalance.py`](training/run_imbalance.py), raw: [`imbalance_runs.csv`](results_kaggle/imbalance_runs.csv))._
+
+| Strategy | Macro F1 | Weighted F1 | Accuracy | `cha_dam_yen` recall | `cha_dam_yen` precision | `cha_dam_yen` F1 |
+|---|---|---|---|---|---|---|
+| None (plain CE) | **0.902 ± 0.012** | **0.906 ± 0.012** | **0.906 ± 0.012** | 0.96 ± 0.06 | 0.83 ± 0.04 | **0.89 ± 0.05** |
+| Class-weighted CE (used in §6.1) | 0.891 ± 0.017 | 0.899 ± 0.014 | 0.898 ± 0.014 | **1.00 ± 0.00** | 0.74 ± 0.08 | 0.85 ± 0.05 |
+| WeightedRandomSampler | 0.889 ± 0.009 | 0.894 ± 0.014 | 0.893 ± 0.013 | 0.99 ± 0.03 | 0.77 ± 0.04 | 0.86 ± 0.03 |
+| Focal loss (γ = 2) | 0.881 ± 0.020 | 0.883 ± 0.025 | 0.882 ± 0.024 | 0.91 ± 0.06 | **0.85 ± 0.04** | 0.88 ± 0.02 |
+
+![imbalance macro F1](results_kaggle/imbalance_f1_macro_resnet50.png)
+
+- **No strategy is significantly better than another on macro F1** (all 6 pairs p ≥ 0.09). "None" has the highest mean, but its lead
+  over class weighting is small (p = 0.27, g = 0.68).
+- The strategies mainly **move the `cha_dam_yen` decision boundary**. Class weighting and oversampling push recall to ~1.00 but let other
+  dark drinks into the class (precision 0.74–0.77). Focal loss and no compensation keep precision at 0.83–0.85 with slightly lower recall.
+  The only significant difference is recall: class weight vs focal loss (1.00 vs 0.91, p = 0.03, g = 1.83).
+- **Interpretation.** At a 3 : 1 ratio, pretrained features already separate `cha_dam_yen` well, so re-weighting is not needed and mostly
+  costs precision. Compensation would matter more at stronger imbalance.
+- Sanity check: the class-weight row reproduces the ResNet-50 runs of §6.1 exactly (same seeds give identical F1), so runs are deterministic.
+- We **keep class-weighted CE for the main comparison** because it was fixed before seeing any test result. Switching to "none" now would
+  mean choosing a training setting on the test set.
 
 ---
 
@@ -307,7 +328,8 @@ _ResNet-50 × 5 seeds × 4 strategies: no compensation / class-weighted CE / Wei
 ### 7.2 Anomalies
 - **`cha_dam_yen` is over-predicted.** ResNet-50 reaches recall 1.00 but precision 0.74, and EfficientNet / MobileNet have precision 0.63.
   The class weight (~2.5×) on a class with only 51 training images pushes borderline dark drinks (dark fruit teas, some green teas in dark cups)
-  into `cha_dam_yen`. VGG-16 shows the opposite (recall 0.61), confusing dark tea with Thai tea. The imbalance ablation (§6.6) addresses this.
+  into `cha_dam_yen`. VGG-16 shows the opposite (recall 0.61), confusing dark tea with Thai tea. The ablation (§6.6) confirms the cause:
+  without class weights ResNet-50's `cha_dam_yen` precision rises from 0.74 to 0.83 and macro F1 does not drop (0.902 vs 0.891, n.s.).
 - **`cha_thai` absorbs most errors** (it is the most common predicted class among mistakes). Orange is shared by Thai tea, peach and passion-fruit teas.
 
 ### 7.3 GradCAM: correct vs misclassified
