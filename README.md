@@ -18,6 +18,7 @@ leakage-safe **group split**. **All numbers below are on the held-out test set a
 | Best models | **ResNet-50** (macro F1 0.891 ± 0.017) ≈ **EfficientNet-B3** (0.883 ± 0.017); difference not significant (Welch p = 0.48) |
 | Worst model | VGG-16 (macro F1 0.795 ± 0.023), significantly below all others (p ≤ 0.011, \|Hedges' g\| ≥ 1.96) |
 | Main error mode | Drinks with overlapping colour: orange fruit teas → Thai tea, dark fruit teas → black tea |
+| Hyperparameter tuning | Optuna + W&B Sweep (78 trials, validation set). Re-training with the tuned values gave **no significant test change** for any model (§6.7) |
 
 ---
 
@@ -191,8 +192,8 @@ Only the final 1000-class layer of each model is replaced. Everything before it 
   of each stage is kept, and stage 2 starts from the best stage-1 weights.
 - **Seeds:** 11, 22, 33, 44, 55 (same set for every model). The seed changes head initialisation, dropout, augmentation and batch order. The split stays fixed.
 - **Hardware:** Kaggle, NVIDIA Tesla T4.
-- **Hyperparameter tuning:** a W&B Bayesian sweep is implemented ([`training/run_sweep.py`](training/run_sweep.py)) but **was not run**
-  because of the GPU budget. All models use the fixed defaults above, chosen before seeing test results. Model selection used the validation set only.
+- **Hyperparameters:** the values above are the defaults used in the main comparison (§6.1–6.6). They were then tuned with
+  **Optuna and W&B Sweep** (§4.3), and all 4 models were re-trained with the tuned values (§6.7).
 
 ### 4.2 Learning curves (final runs, all 4 models)
 ![learning curves](report/learning_curves_all.png)
@@ -215,6 +216,44 @@ Faint lines = validation curves of the other 4 seeds. Dashed line = start of sta
 - **Early stopping triggered** in most runs (patience 5), so models stop once val F1 stops improving (VGG-16 after 16–18 of 25 epochs).
 - Train F1 is sometimes *below* val F1 early on. Train metrics are measured on augmented images with dropout active, while val uses clean
   centre crops. This is expected and not a leak.
+
+### 4.3 Hyperparameter tuning: Optuna + W&B Sweep
+Both tools searched **the same space**, separately for each architecture, with the same fixed seed (42), and scored each trial by its
+**best validation weighted F1**. The test set was not used. Code: [`run_tune_optuna.py`](training/run_tune_optuna.py),
+[`run_sweep.py`](training/run_sweep.py), [`tuning.py`](training/tuning.py). All trials: [`trials.csv`](results_kaggle/tuning/trials.csv).
+
+| Hyperparameter | Values searched (108 combinations per model) |
+|---|---|
+| stage-1 learning rate | 5e-4, 1e-3 |
+| stage-1 epochs | 5, 10 |
+| stage-2 learning rate | 1e-5, 5e-5, 1e-4 |
+| stage-2 epochs | 10, 15, 20 |
+| label smoothing | 0, 0.05, 0.1 |
+
+| | Optuna | W&B Sweep |
+|---|---|---|
+| Search method | TPE sampler (4 random start-up trials), **median pruning** in stage 2 | Bayesian optimisation |
+| Budget per model | 10 trials | 10 runs |
+| Trials run (all models) | 38 (6 pruned early; repeated suggestions reused, not retrained) | 40 |
+| GPU time (Kaggle T4) | 2.6 h | 2.9 h |
+| Best val F1 found: VGG-16 / ResNet-50 / EffNet-B3 / MobileNet-V3 | 0.936 / **0.957** / 0.948 / 0.914 | **0.957** / **0.957** / **0.949** / **0.915** |
+
+![tuning convergence](report/tuning_convergence.png)
+
+**Selected values** (best validation F1 over both tools, [`best_hparams.json`](results_kaggle/tuning/best_hparams.json)):
+
+| Model | stage-1 lr | stage-1 epochs | stage-2 lr | stage-2 epochs | label smoothing | chosen from |
+|---|---|---|---|---|---|---|
+| VGG-16 | 1e-3 | 5 | 1e-4 | 20 | 0.1 | W&B Sweep |
+| ResNet-50 | 5e-4 | 10 | 1e-4 | 15 | 0 | Optuna (tied with Sweep) |
+| EfficientNet-B3 | 5e-4 | 10 | 1e-4 | 20 | 0.1 | W&B Sweep |
+| MobileNet-V3-L | 5e-4 | 10 | 5e-5 | 10 | 0.05 | W&B Sweep |
+
+- **The two tools end up equal.** Their best values differ by ≤ 0.002 except VGG-16 (0.957 vs 0.936). On a 93-image validation set,
+  0.01 F1 is about one image, and several configurations tie at the top (e.g. 3 ResNet-50 trials at 0.957).
+- **Optuna was cheaper** (2.6 h vs 2.9 h) because pruning stopped bad stage-2 runs early. Its first random trials were weaker, so it
+  needed more trials to catch up (ResNet-50, EfficientNet-B3 panels).
+- The searches agree on **stage-2 lr = 1e-4** for the three larger models. Mild label smoothing helps VGG-16 and EfficientNet-B3.
 
 ---
 
@@ -309,6 +348,27 @@ _ResNet-50, same split, same 5 seeds, default hyperparameters. Only the imbalanc
 - We **keep class-weighted CE for the main comparison** because it was fixed before seeing any test result. Switching to "none" now would
   mean choosing a training setting on the test set.
 
+### 6.7 Default vs tuned hyperparameters
+All 4 models re-trained with the tuned values (§4.3): same split, same 5 seeds, test set
+([`results_kaggle/tuned/`](results_kaggle/tuned/)).
+
+| Model | Macro F1, default | Macro F1, tuned | Δ | Welch p | Hedges' g | Weighted F1, tuned |
+|---|---|---|---|---|---|---|
+| VGG-16 | 0.795 ± 0.023 | **0.818 ± 0.027** | +0.023 | 0.20 | 0.81 | 0.832 ± 0.028 |
+| ResNet-50 | **0.891 ± 0.017** | 0.883 ± 0.016 | −0.008 | 0.46 | −0.45 | 0.891 ± 0.014 |
+| EfficientNet-B3 | **0.883 ± 0.017** | 0.879 ± 0.013 | −0.005 | 0.66 | −0.26 | 0.903 ± 0.010 |
+| MobileNet-V3-L | 0.839 ± 0.016 | **0.842 ± 0.021** | +0.003 | 0.79 | 0.16 | 0.863 ± 0.020 |
+
+![default vs tuned](report/default_vs_tuned.png)
+
+- **Tuning changed no model significantly** (all p ≥ 0.20). Only VGG-16 gains noticeably (+0.023, g = 0.81). It was the worst model and
+  furthest from its best settings: the tuned run uses a shorter stage 1, a longer stage 2 and label smoothing 0.1.
+- **Why so little gain:** (1) the search picks the configuration that is best on *one seed* and *93 validation images*, where many
+  configurations tie within 1 image, so part of the "improvement" is noise; (2) the defaults were already reasonable two-stage settings.
+- **The ranking is unchanged.** Tuned: ResNet-50 ≈ EfficientNet-B3 (p = 0.64) > MobileNet-V3 > VGG-16. With tuning, MobileNet-V3 vs VGG-16
+  is **no longer significant** (p = 0.16), so the clear gap is between the modern pair and the two others.
+- Main tables (§6.1–6.6) and the analyses in §7 use the default runs. Tuning did not change any conclusion, so we report it as a robustness check.
+
 ---
 
 ## 7. Discussion & conclusions
@@ -371,13 +431,15 @@ These test images were **not** relabelled or removed after we saw the results, b
 ### 7.6 Limitations
 - **Small minority class.** `cha_dam_yen` has only 14 test images (1 image ≈ 7 % recall), so its per-class numbers are noisy.
 - **SD covers training randomness only.** The 5 seeds share one split, so variance from the choice of data is not included.
-- **No hyperparameter search.** Defaults were used for all models, so VGG-16 in particular might improve with tuning.
+- **Tuning on one seed and a small validation set.** Hyperparameters were selected from single-seed runs scored on 93 validation
+  images, which is noisy. Selecting by the mean over several seeds, or by cross-validation, would be more reliable but costs 3–5× more GPU.
 - **Web images are biased** toward stylised marketing and stock photos. Real street-stall photos are a minority (112 hand-collected).
 
 ### 7.7 Conclusions
 Fine-tuning ImageNet CNNs on fewer than 1,000 curated images separates 5 visually similar tea drinks with **~0.89 macro F1**.
 Architecture matters: modern families (ResNet, EfficientNet) beat VGG by ~9 F1 points with large, significant effects, while ResNet-50 and
-EfficientNet-B3 are statistically tied. The remaining errors come mostly from drinks whose colours overlap between classes and from images
+EfficientNet-B3 are statistically tied. Hyperparameter tuning with Optuna and W&B Sweep confirmed this ranking but did not significantly
+improve any model. The remaining errors come mostly from drinks whose colours overlap between classes and from images
 where the drink is partly hidden. Clearer class definitions (e.g. "fruit tea must show fruit in the drink") and more `cha_dam_yen`
 photos are the most promising improvements.
 
@@ -397,10 +459,15 @@ training/
   pilot.py               # ResNet-50 group vs random split (leakage check)
   run_final.py           # 4 archs x 5 seeds -> results/runs.csv, preds/, plots, t-tests
   run_imbalance.py       # imbalance-strategy ablation
+  run_tune_optuna.py     # Optuna tuning (TPE + median pruning), per architecture
+  run_sweep.py           # W&B Sweep tuning (Bayesian), per architecture
+  tuning.py              # shared search space, trial runner, best_hparams selection
   analyze_preds.py       # confusion matrices, error pairs, accuracy by source, hard images
   report_figures.py      # EDA / baseline / eyeball / learning-curve figures in report/
 notebooks/03_kaggle_train.ipynb   # Kaggle GPU runner
-results_kaggle/          # final results used in this report
+results_kaggle/          # final results used in this report (default run, imbalance ablation, logs)
+  tuning/                # all tuning trials + selected hyperparameters
+  tuned/                 # 4 archs x 5 seeds re-trained with tuned hyperparameters
 report/                  # figures for this README
 ```
 

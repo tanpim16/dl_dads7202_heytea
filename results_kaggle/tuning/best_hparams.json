@@ -1,0 +1,30 @@
+{
+  "efficientnet_b3": {
+    "stage1_lr": 0.0005,
+    "stage1_epochs": 10,
+    "stage2_lr": 0.0001,
+    "stage2_epochs": 20,
+    "label_smoothing": 0.1
+  },
+  "mobilenet_v3_large": {
+    "stage1_lr": 0.0005,
+    "stage1_epochs": 10,
+    "stage2_lr": 5e-05,
+    "stage2_epochs": 10,
+    "label_smoothing": 0.05
+  },
+  "resnet50": {
+    "stage1_lr": 0.0005,
+    "stage1_epochs": 10,
+    "stage2_lr": 0.0001,
+    "stage2_epochs": 15,
+    "label_smoothing": 0.0
+  },
+  "vgg16": {
+    "stage1_lr": 0.001,
+    "stage1_epochs": 5,
+    "stage2_lr": 0.0001,
+    "stage2_epochs": 20,
+    "label_smoothing": 0.1
+  }
+}

@@ -311,3 +311,52 @@ def learning_curves_all(log: Path, runs_csv: Path, out: Path):
               .groupby("arch")[["tr_f1", "vl_f1", "gap_f1", "tr_loss", "vl_loss", "gap_loss"]].agg(["mean", "std"]).round(3)
     epochs = df.groupby(["arch", "seed"])["x"].max().groupby("arch").agg(["mean", "min", "max"])
     return med, gap, epochs
+
+
+def tuning_figures(tuning_csv: Path, default_runs: Path, tuned_runs: Path, out: Path):
+    """(1) Optuna vs W&B Sweep: best-so-far val F1 ต่อ trial  (2) test macro F1 ก่อน vs หลัง tune (dot = seed)"""
+    t = pd.read_csv(tuning_csv)
+    archs = ["vgg16", "resnet50", "efficientnet_b3", "mobilenet_v3_large"]
+    colors = {"optuna": "tab:blue", "wandb_sweep": "tab:orange"}
+    names = {"optuna": "Optuna (TPE + pruning)", "wandb_sweep": "W&B Sweep (Bayes)"}
+    fig, axes = plt.subplots(1, 4, figsize=(17, 3.6), sharey=True)
+    for ax, a in zip(axes, archs):
+        for tool, g in t[t["arch"] == a].groupby("tool"):
+            g = g.reset_index(drop=True)
+            v = pd.to_numeric(g["best_val_f1"], errors="coerce")
+            ok = v.notna()
+            ax.plot(np.arange(len(g))[ok], v[ok], "o", color=colors[tool], alpha=0.45, ms=5)
+            ax.plot(np.arange(len(g)), v.fillna(-1).cummax().where(lambda s: s > 0), "-", color=colors[tool],
+                    lw=2, label=names[tool])
+            pr = np.where(~ok)[0]
+            ax.plot(pr, np.full(len(pr), 0.80), "x", color=colors[tool], ms=7)
+        ax.set_title(a, fontsize=10)
+        ax.set_xlabel("trial (x = pruned by Optuna)")
+        ax.set_ylim(0.78, 0.97)
+    axes[0].set_ylabel("best validation weighted F1")
+    axes[0].legend(fontsize=8, loc="lower right")
+    fig.suptitle("Hyperparameter search: dots = trials, line = best so far (same search space, seed 42, validation set only)", fontsize=11)
+    plt.tight_layout()
+    plt.savefig(out / "tuning_convergence.png", dpi=130)
+    plt.close()
+
+    d = pd.read_csv(default_runs).assign(setting="default")
+    u = pd.read_csv(tuned_runs).assign(setting="tuned")
+    df = pd.concat([d, u])
+    fig, ax = plt.subplots(figsize=(9, 4))
+    for i, a in enumerate(archs):
+        for j, (st, col) in enumerate([("default", "tab:gray"), ("tuned", "tab:green")]):
+            v = df[(df["arch"] == a) & (df["setting"] == st)]["f1_macro"]
+            x = i + (j - 0.5) * 0.35
+            ax.plot(x + np.linspace(-0.05, 0.05, len(v)), v, "o", color=col, alpha=0.8,
+                    label=st if i == 0 else None)
+            ax.hlines(v.mean(), x - 0.12, x + 0.12, color="black", lw=2)
+            ax.vlines(x, v.mean() - v.std(), v.mean() + v.std(), color="black", lw=1)
+    ax.set_xticks(range(len(archs)))
+    ax.set_xticklabels(archs)
+    ax.set_ylabel("test macro F1")
+    ax.set_title("Default vs tuned hyperparameters — test macro F1 (dot = seed, bar = mean ± SD)")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(out / "default_vs_tuned.png", dpi=130)
+    plt.close()
