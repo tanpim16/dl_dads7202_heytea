@@ -133,3 +133,46 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def class_focus(results: Path, cls: str = "cha_dam_yen", min_runs: int = 3, S: int = 220):
+    """รูปที่ถูกทายเป็น <cls> ทั้งที่ไม่ใช่ (false positive) และ <cls> ที่ถูกทายผิด (false negative) รวมทุก run"""
+    df = load(results)
+    n_runs = df.groupby("filename").size().max()
+    out = results / "analysis"
+    fp = df[(df["pred"] == cls) & (df["class"] != cls)]
+    fn = df[(df["class"] == cls) & (df["pred"] != cls)]
+    rows = []
+    for kind, d in [("FP", fp), ("FN", fn)]:
+        g = d.groupby("filename")
+        t = pd.DataFrame({"kind": kind, "class": g["class"].first(), "relpath": g["relpath"].first(),
+                          "engine": g["engine"].first(), "runs": g.size(),
+                          "top_pred": g["pred"].agg(lambda s: s.value_counts().index[0]),
+                          "archs": g["arch"].agg(lambda s: ",".join(sorted(set(a.split("_")[0] for a in s))))})
+        rows.append(t[t["runs"] >= min_runs])
+    t = pd.concat(rows).reset_index().sort_values(["kind", "runs"], ascending=[False, False])
+    t.to_csv(out / f"{cls}_errors.csv", index=False)
+    by_arch = (fp.groupby(["arch", "seed"]).size().groupby("arch").mean().rename("FP per run").to_frame()
+                 .join(fn.groupby(["arch", "seed"]).size().groupby("arch").mean().rename("FN per run")).fillna(0).round(1))
+    print(f"\n{cls}: FP/FN ต่อ run"); print(by_arch.reindex(ARCHS).to_string())
+    print(f"\nFP ที่มาจากคลาสไหน (รวม {n_runs} run):"); print(fp["class"].value_counts().to_string())
+    print(t[["kind", "filename", "class", "top_pred", "runs", "archs", "engine"]].to_string(index=False))
+
+    cols = 6
+    nrow = int(np.ceil(len(t) / cols))
+    sheet = Image.new("RGB", (cols * S, nrow * (S + 44)), "white")
+    d = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 14)
+    except OSError:
+        font = ImageFont.load_default()
+    for i, (_, r) in enumerate(t.iterrows()):
+        x, y = (i % cols) * S, (i // cols) * (S + 44)
+        sheet.paste(ImageOps.fit(Image.open(DATA_DIR / r["relpath"]).convert("RGB"), (S - 6, S - 6)), (x + 3, y + 3))
+        col = "red" if r["kind"] == "FP" else "blue"
+        d.rectangle([x + 3, y + 3, x + 40, y + 22], fill=col)
+        d.text((x + 7, y + 5), r["kind"], fill="white", font=font)
+        d.text((x + 4, y + S), f"true: {r['class'].replace('cha_', '')}", fill="black", font=font)
+        d.text((x + 4, y + S + 18), f"pred: {r['top_pred'].replace('cha_', '')} ({r['runs']}/{n_runs} runs)", fill=col, font=font)
+    sheet.save(out / f"{cls}_errors.jpg", quality=85)
+    return t, by_arch

@@ -381,9 +381,11 @@ All 4 models re-trained with the tuned values (§4.3): same split, same 5 seeds,
 - **Most suitable for our use case:** **ResNet-50** if the goal is recognising every drink equally well
   (best macro F1, best `cha_dam_yen` F1 0.85). **EfficientNet-B3** if model size matters (statistically tied, 2.2× fewer parameters).
   **MobileNet-V3-Large** for an on-phone menu app, at a cost of ~5 F1 points.
-- **VGG-16 is clearly the worst** (all p ≤ 0.011, |g| ≥ 1.96) even though it has the most parameters (134 M). It has no skip connections
-  and keeps two pretrained 4096-unit FC layers trained on only 638 images, which makes overfitting easy. It also has the widest spread
-  between seeds (one seed at 0.754).
+- **VGG-16 is clearly the worst** (all p ≤ 0.011, |g| ≥ 1.96) even though it has the most parameters (134 M). Its train-val F1 gap
+  (0.056) is similar to ResNet-50's (0.049, §4.2), so plain overfitting does not explain it. What differs is that VGG-16 has
+  **the highest validation loss (0.51 vs 0.21–0.28) and the noisiest validation curve**, i.e. its predictions are less confident and less
+  stable. Likely reasons: no skip connections or batch norm, and stage 2 fine-tunes ~127 M parameters (mostly the two FC-4096 layers)
+  on only 638 images. It also has the widest spread between seeds (one seed at 0.754).
 
 ### 7.2 Anomalies
 - **`cha_dam_yen` is over-predicted.** ResNet-50 reaches recall 1.00 but precision 0.74, and EfficientNet / MobileNet have precision 0.63.
@@ -428,14 +430,37 @@ The models rely mainly on **colour**. This matches the augmentation choice: `Col
 cue only slightly, and texture cues (pearls, fruit pieces) are learned less reliably.
 These test images were **not** relabelled or removed after we saw the results, because that would be test-set snooping.
 
-### 7.6 Limitations
+### 7.6 Focus on the problem class: `cha_dam_yen`
+All test images predicted as `cha_dam_yen` while being another class (**FP**, red) or `cha_dam_yen` predicted as something else
+(**FN**, blue) in ≥ 3 of the 20 runs ([`cha_dam_yen_errors.csv`](results_kaggle/analysis/cha_dam_yen_errors.csv)):
+
+![cha_dam_yen errors](results_kaggle/analysis/cha_dam_yen_errors.jpg)
+
+| Per run | VGG-16 | ResNet-50 | EfficientNet-B3 | MobileNet-V3-L |
+|---|---|---|---|---|
+| False positives (other → dam_yen) | 2.2 | 5.2 | 7.0 | 6.8 |
+| False negatives (dam_yen → other) | 5.4 | **0.0** | 2.0 | 2.4 |
+
+- **Where the false positives come from:** fruit tea (46 of 106 FP predictions), green milk tea (29), Thai tea (26), bubble tea (5).
+  The repeat offenders are **dark iced fruit teas** (clear brown-red tea with an orange or peach slice, wrong in up to 19/20 runs),
+  Thai tea photographed in **dim light** (looks dark orange-brown), and drinks in **opaque or printed cups**. In all of them the
+  visible liquid is dark and clear, which is the main cue for `cha_dam_yen`.
+- **False negatives** are black teas whose liquid is barely visible: branded cups covering the drink (ICE CUP, MICHA), a watermarked
+  stock photo, a wide bowl seen from above, and a lighter, orange-tinted black tea that looks like Thai or fruit tea.
+- **The models trade FP for FN differently.** ResNet-50 never misses a black tea but accepts ~5 wrong ones per run. VGG-16 does the opposite.
+  This matches §6.6: removing the class weight lowers ResNet-50's false positives (precision 0.74 → 0.83).
+- **Fix ideas:** collect more black-tea photos in branded or opaque cups, and more dark fruit teas *labelled as fruit tea*, so the model
+  must look at fruit pieces rather than liquid colour. A clearer rule for "fruit tea" (fruit must be in the drink, not only a garnish) would
+  also remove the ambiguous cases.
+
+### 7.7 Limitations
 - **Small minority class.** `cha_dam_yen` has only 14 test images (1 image ≈ 7 % recall), so its per-class numbers are noisy.
 - **SD covers training randomness only.** The 5 seeds share one split, so variance from the choice of data is not included.
 - **Tuning on one seed and a small validation set.** Hyperparameters were selected from single-seed runs scored on 93 validation
   images, which is noisy. Selecting by the mean over several seeds, or by cross-validation, would be more reliable but costs 3–5× more GPU.
 - **Web images are biased** toward stylised marketing and stock photos. Real street-stall photos are a minority (112 hand-collected).
 
-### 7.7 Conclusions
+### 7.8 Conclusions
 Fine-tuning ImageNet CNNs on fewer than 1,000 curated images separates 5 visually similar tea drinks with **~0.89 macro F1**.
 Architecture matters: modern families (ResNet, EfficientNet) beat VGG by ~9 F1 points with large, significant effects, while ResNet-50 and
 EfficientNet-B3 are statistically tied. Hyperparameter tuning with Optuna and W&B Sweep confirmed this ranking but did not significantly
