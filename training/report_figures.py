@@ -136,6 +136,41 @@ def imagenet_top1(paths):
     return res
 
 
+@torch.no_grad()
+def baseline_all_models(out: Path):
+    """ImageNet weights ทั้ง 4 arch (ยังไม่ตัดต่อ/ไม่เทรน) ทายรูปเดียวกัน คลาสละ 1 รูปจาก test set"""
+    from torchvision.models import VGG16_Weights, EfficientNet_B3_Weights, MobileNet_V3_Large_Weights
+    specs = [("VGG-16", models.vgg16, VGG16_Weights.IMAGENET1K_V1),
+             ("ResNet-50", models.resnet50, ResNet50_Weights.IMAGENET1K_V2),
+             ("EfficientNet-B3", models.efficientnet_b3, EfficientNet_B3_Weights.IMAGENET1K_V1),
+             ("MobileNet-V3-L", models.mobilenet_v3_large, MobileNet_V3_Large_Weights.IMAGENET1K_V2)]
+    test = pd.read_csv(SPLIT_FILE).query("split == 'test'")
+    meta = pd.read_csv(METADATA).set_index("filename")
+    picks = [test[test["class"] == c]["filename"].sample(1, random_state=1).iloc[0] for c in CLASSES]
+    imgs = [Image.open(DATA_DIR / meta.at[f, "relpath"]).convert("RGB") for f in picks]
+    fig, axes = plt.subplots(len(specs), len(picks), figsize=(3.1 * len(picks), 3.4 * len(specs)))
+    table = {}
+    for r, (name, fn, w) in enumerate(specs):
+        m, tf = fn(weights=w).eval(), w.transforms()
+        table[name] = []
+        for c, (f, img) in enumerate(zip(picks, imgs)):
+            pr = m(tf(img)[None]).softmax(1)[0]
+            v, i = pr.max(0)
+            lab = w.meta["categories"][i]
+            table[name].append((lab, round(float(v), 3)))
+            ax = axes[r, c]
+            ax.imshow(ImageOps.fit(img, (224, 224)))
+            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_title(f"true: {CLASSES[c].replace('cha_', '')}\npred: {lab[:20]} ({float(v):.0%})", fontsize=8, color="red")
+            if c == 0:
+                ax.set_ylabel(name, fontsize=10)
+    fig.suptitle("Pre-trained CNNs (ImageNet weights, no layer changes, no training) on our test images", fontsize=11)
+    plt.tight_layout()
+    plt.savefig(out / "baseline_all_models.png", dpi=110)
+    plt.close()
+    return table
+
+
 def baseline_and_eyeball(results: Path, out: Path):
     test = pd.read_csv(SPLIT_FILE).query("split == 'test'")
     meta = pd.read_csv(METADATA).set_index("filename")
@@ -208,6 +243,7 @@ def main():
     samples(df, out)
     augmentation(df, out)
     info = baseline_and_eyeball(Path(a.results), out)
+    info["baseline_all_models"] = baseline_all_models(out)
     if Path(a.log).exists():
         learning_curve(Path(a.log), out)
     (out / "baseline.json").write_text(json.dumps(info, indent=2, ensure_ascii=False))

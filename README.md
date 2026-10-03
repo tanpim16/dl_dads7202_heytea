@@ -126,8 +126,12 @@ No group appears in more than one split. The split is fixed in [`tea_dataset/spl
 **Leakage check (pilot, ResNet-50, 1 seed):** group split test accuracy 0.918 / macro F1 0.909 vs. random stratified split 0.902 / 0.904.
 Random split was *not* higher, so the scraped groups do not leak. Accuracy ~0.9 (not ~0.99) is plausible for this task.
 
-### 2.2 Preprocessing
-- Resize so the short side = 256, centre crop 224 × 224 (val/test); ImageNet mean/std normalisation.
+### 2.2 Preprocessing (in order)
+1. Decode as RGB (palette / RGBA images converted).
+2. **Train:** online augmentation (§2.3), which ends with a random crop to 224 × 224.
+   **Val / test:** resize short side to 256, then centre crop 224 × 224.
+3. `ToTensor` (pixel values 0–255 → 0–1), then normalise with ImageNet mean / std.
+4. Batch size 32. The **training set is reshuffled every epoch**. Val / test keep a fixed order.
 
 ### 2.3 Data augmentation (online, train only)
 `RandomResizedCrop(224, scale 0.8–1.0)` · `RandomHorizontalFlip(0.5)` · `RandomRotation(15°)` ·
@@ -149,13 +153,14 @@ Random split was *not* higher, so the scraped groups do not leak. Accuracy ~0.9 
 
 All use torchvision ImageNet weights (`VGG16_IMAGENET1K_V1`, `ResNet50_IMAGENET1K_V2`, `EfficientNet_B3_IMAGENET1K_V1`, `MobileNet_V3_Large_IMAGENET1K_V2`).
 
-### 3.2 Pre-trained CNN before fine-tuning
-The original ImageNet ResNet-50 has no tea classes, so it falls back to visually similar objects. It cannot separate our 5 drinks:
+### 3.2 Pre-trained CNNs before fine-tuning
+All 4 original ImageNet models (no layers changed, no training) on the same 5 test images, one per class:
 
-![baseline](report/baseline_imagenet.png)
+![baseline all models](report/baseline_all_models.png)
 
-Top-1 ImageNet predictions on 10 test images: _chocolate sauce, beaker, beer glass, broccoli, espresso, eggnog ×3, lemon, ice cream_.
-The same ImageNet class (_eggnog_) is predicted for bubble tea, fruit tea and Thai tea.
+ImageNet has no tea-drink classes, so every model falls back to containers or other drinks: _cocktail shaker, pitcher,
+water jug, beaker, pop bottle, strainer, ice cream_, and above all _eggnog_, which is predicted for green milk tea and bubble tea alike.
+None of these labels tells the 5 drinks apart, so fine-tuning is needed. More examples (ResNet-50, 10 images): [`report/baseline_imagenet.png`](report/baseline_imagenet.png).
 
 ### 3.3 Removed layers and new classification head
 Only the final 1000-class layer of each model is replaced. Everything before it is kept with its pretrained weights.
@@ -245,19 +250,19 @@ Full table: [`results_kaggle/ttest.csv`](results_kaggle/ttest.csv).
 | EfficientNet-B3 | 0.86 ± 0.10 | 0.63 ± 0.06 |
 | MobileNet-V3-L | 0.83 ± 0.08 | 0.63 ± 0.03 |
 
-### 6.4 Confusion matrices (5 seeds pooled, row-normalised)
+### 6.4 Confusion matrices (all 5 seeds pooled, row-normalised, so no single seed is cherry-picked)
 ![confusion matrices](results_kaggle/analysis/cm_all.png)
 
 Most frequent errors (all models, wrong images per run): khiao_nom → thai 3.8 · phonlamai → thai 3.5 ·
 thai → nom_khai_muk 2.6 · phonlamai → dam_yen 2.3 ([`confusion_pairs.csv`](results_kaggle/analysis/confusion_pairs.csv)).
 
 ### 6.5 Accuracy by image source
-| Model | Bing (n = 131) | Baidu (n = 28) | Delivery apps / FB (n = 23) |
+| Accuracy | Bing (n = 131) | Baidu (n = 28) | Delivery apps / FB (n = 23) |
 |---|---|---|---|
-| VGG-16 | 0.82 | 0.74 | 0.83 |
-| ResNet-50 | 0.91 | 0.87 | 0.88 |
-| EfficientNet-B3 | 0.92 | 0.85 | 0.92 |
-| MobileNet-V3-L | 0.86 | 0.86 | 0.85 |
+| VGG-16 | 0.824 ± 0.017 | 0.736 ± 0.065 | 0.826 ± 0.043 |
+| ResNet-50 | 0.907 ± 0.017 | 0.871 ± 0.032 | 0.878 ± 0.036 |
+| EfficientNet-B3 | 0.915 ± 0.013 | 0.850 ± 0.030 | 0.922 ± 0.019 |
+| MobileNet-V3-L | 0.855 ± 0.013 | 0.857 ± 0.044 | 0.852 ± 0.024 |
 
 Hand-collected delivery-app photos score as well as web images, so the models did not learn a "source style".
 Baidu (mostly watermarked stock photos) is lowest, but its n is small.
@@ -275,6 +280,9 @@ _ResNet-50 × 5 seeds × 4 strategies: no compensation / class-weighted CE / Wei
   ResNet-50 is slightly better on macro F1 (it never misses `cha_dam_yen`). EfficientNet-B3 is slightly better on weighted F1 / accuracy
   (stronger on the large classes, especially `cha_khiao_nom` F1 0.95). EfficientNet reaches this with 2.2× fewer parameters.
 - **MobileNet-V3-Large** is ~5 points lower but still respectable for a 4.2 M-parameter model.
+- **Most suitable for our use case:** **ResNet-50** if the goal is recognising every drink equally well
+  (best macro F1, best `cha_dam_yen` F1 0.85). **EfficientNet-B3** if model size matters (statistically tied, 2.2× fewer parameters).
+  **MobileNet-V3-Large** for an on-phone menu app, at a cost of ~5 F1 points.
 - **VGG-16 is clearly the worst** (all p ≤ 0.011, |g| ≥ 1.96) even though it has the most parameters (134 M). It has no skip connections
   and keeps two pretrained 4096-unit FC layers trained on only 638 images, which makes overfitting easy. It also has the widest spread
   between seeds (one seed at 0.754).
